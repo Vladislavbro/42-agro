@@ -23,24 +23,22 @@
 
 **План Рефакторинга (Следующие Шаги):**
 
-1.  **`app/config.py`:**
-    *   Реализовать загрузку переменных окружения из `.env` (API ключи, `PRIMARY_LLM_PROVIDER`, Google Sheets ID и credentials path).
-    *   Добавить константы или функции для получения путей к файлам справочников в `data/mappings/`.
+1.  **`app/config.py`:** - **Готово**
+    *   Реализована загрузка переменных окружения из `.env`.
+    *   Добавлены константы для путей к файлам справочников.
 
-2.  **`app/llm_integration/prompt_builder.py`:**
-    *   Создать функцию `load_mapping_file(file_path: str) -> str` для загрузки содержимого файлов справочников.
-    *   Реализовать функцию `build_detailed_extraction_prompt(input_message: str, cultures_content: str, operations_content: str, departments_content: str, current_date: str) -> str`:
-        *   Принимает текст сообщения и *содержимое* файлов справочников.
-        *   Формирует полный текст промпта для извлечения всех записей (аналогично `extract_detailed_agro_reports` из ноутбука).
-    *   Реализовать функцию `build_structure_analysis_prompt(input_message: str, cultures_content: str, operations_content: str, departments_content: str) -> str`:
-        *   Принимает текст сообщения и *содержимое* файлов справочников.
-        *   Формирует полный текст промпта для анализа структуры сообщения (аналогично `analyze_message_structure_with_gemini` из ноутбука).
+2.  **`app/llm_integration/prompt_builder.py`:** - **Готово**
+    *   Реализована функция `load_mapping_file(file_path: str) -> str`.
+    *   Реализована функция `build_detailed_extraction_prompt(input_message: str, cultures_content: str, operations_content: str, departments_content: str, current_date: str) -> str`:
+        *   Принимает текст сообщения и содержимое файлов справочников.
+        *   Формирует полный текст промпта для извлечения всех записей.
+    *   Функция `build_structure_analysis_prompt` на данный момент не требуется и удалена/закомментирована.
 
 3.  **`app/llm_integration/client.py`:**
-    *   Импортировать необходимые библиотеки (`google.generativeai`, `openai` или специфичную для DeepSeek, `os`, конфигурацию из `app.config`).
+    *   Импортировать необходимые библиотеки (`google.generativeai`, `openai`, `os`, конфигурацию из `app.config`).
     *   Создать класс или функции для инициализации LLM клиента:
         *   При инициализации читать `PRIMARY_LLM_PROVIDER` из конфига.
-        *   В зависимости от провайдера, инициализировать *только* соответствующий клиент (DeepSeek или Gemini), используя API-ключ из конфига.
+        *   В зависимости от провайдера, инициализировать *только* соответствующий клиент (DeepSeek или Gemini), используя API-ключ из конфига. Учесть, что deepseel использует библиотеку openai и возможно мы будем также использовать модели от openai. в таком случае нам надо будет только менять ключи + ссылку на провайдера. 
         *   Хранить активный клиент.
     *   Реализовать функцию `generate_response(prompt: str) -> str`:
         *   Принимает готовый текст промпта.
