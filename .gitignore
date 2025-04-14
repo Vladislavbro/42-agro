@@ -1,0 +1,15 @@
+# Common Python ignores
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables
+.env
+
+# IDE / Editor specific
+.vscode/
+.idea/
+*.swp
+
+# Notebook Checkpoints
+.ipynb_checkpoints
