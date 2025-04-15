@@ -31,9 +31,6 @@ def load_mapping_file(file_path: str) -> str:
         raise IOError(f"Ошибка чтения файла справочника {file_path}: {e}")
 
 
-
-departments_list = json.dumps(departments_data_list, indent=2, ensure_ascii=False)
-
 # Шаблон промпта для детального извлечения данных
 prompt_template="""
 Проанализируй следующее сообщение с отчетом о сельскохозяйственных работах:
