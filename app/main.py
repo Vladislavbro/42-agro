@@ -18,7 +18,8 @@ def process_single_message(message: str):
     logging.info("Инициализация клиента LLM...")
     try:
         llm_client = TextGenerationClient()
-        logging.info(f"Клиент LLM инициализирован (Провайдер: {config.PRIMARY_LLM_PROVIDER})")
+        # Уточненное сообщение с провайдером и моделью из объекта клиента
+        logging.info(f"Клиент LLM инициализирован: Провайдер='{llm_client.provider}', Модель='{llm_client.model_name}'")
     except Exception as e:
         logging.error(f"Ошибка инициализации клиента LLM: {e}")
         return None
@@ -113,8 +114,8 @@ if __name__ == "__main__":
     Отд 12 16/16
     Вал 473920
     Урож 296,2
-    Диг - 19,19
-    Оз - 5,33"
+    Диг - 19,19
+    Оз - 5,33"
     """
     # test_message = "Сидоров обработал 50 гектар кукурузы гербицидом Раундап на тракторе Кировец К-700 в Северном отделении вчера"
     # test_message = "Петров ВВ, 12 га, Дискование БДМ 6х4, МТЗ-1221, отд. Южное, 16.05.2024"
