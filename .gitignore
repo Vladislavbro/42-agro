@@ -15,7 +15,6 @@ __pycache__/
 *.swp
 
 # Notebook Checkpoints
-.ipynb_checkpoints
 
 # Generated files
 *.xlsx
