@@ -19,3 +19,5 @@ __pycache__/
 
 # Generated files
 *.xlsx
+
+Openai-json.md
