@@ -69,8 +69,8 @@ def process_single_message(message: str):
             return extracted_data
         else:
             logging.error("Не удалось извлечь JSON из ответа LLM.")
-            logging.warning(f"Ответ LLM, из которого не удалось извлечь JSON:
-{llm_response}")
+            logging.warning(f"""Ответ LLM, из которого не удалось извлечь JSON:
+            {llm_response}""")
             return None
     else:
         logging.error("Не удалось получить ответ от LLM.")

@@ -19,10 +19,10 @@ DEEPSEEK_API_BASE = os.getenv("DEEPSEEK_API_BASE") # Добавляем загр
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") # Добавляем загрузку ключа OpenAI
 PRIMARY_LLM_PROVIDER = os.getenv("PRIMARY_LLM_PROVIDER", "deepseek").lower() # По умолчанию deepseek
 
-# --- Model Names --- (Заданы константами)
-DEEPSEEK_MODEL_NAME = "deepseek-chat"
-GEMINI_MODEL_NAME = "gemini-2.0-flash" # Используем указанную модель
-OPENAI_MODEL_NAME = "gpt-4.1-mini" # Используем указанную модель
+# --- Model Names --- (Загружаем из .env с дефолтами)
+DEEPSEEK_MODEL_NAME = os.getenv("DEEPSEEK_MODEL_NAME", "deepseek-chat")
+GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.0-flash") # Используем указанную модель
+OPENAI_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "gpt-4.1-mini") # Используем указанную модель
 
 # --- Google Sheets Configuration ---
 GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
