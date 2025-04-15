@@ -22,3 +22,5 @@ __pycache__/
 Openai-json.md
 
 .DS_Store
+
+data/reports/

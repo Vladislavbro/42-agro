@@ -1,12 +1,14 @@
 import datetime
 import logging
 import json # Добавим импорт json для красивого вывода
+import pandas as pd # Добавим импорт pandas
 
 # Импортируем наши модули
 from app import config
 from app.llm_integration.client import TextGenerationClient
 from app.llm_integration.prompt_builder import load_mapping_file, build_detailed_extraction_prompt
 from app.llm_integration.extractor import extract_json_list
+from data.test_messages import TEST_MESSAGES # Импортируем тестовые сообщения из корневой папки data
 
 # Настройка базового логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -78,56 +80,39 @@ def process_single_message(message: str):
         return None
 
 if __name__ == "__main__":
-    # --- Тестовое сообщение ---
-    test_message = """
-    Пахота под сах св
-    По Пу 88/329
-    Отд 11 23/60
-    Отд 12 34/204
-    Отд 16 31/65
+    # Список для хранения всех извлеченных данных
+    all_extracted_data = []
+    total_messages = len(TEST_MESSAGES)
+    logging.info(f"Начало пакетной обработки {total_messages} сообщений...")
 
-    Пахота под мн тр
-    По Пу 10/438
-    Отд 17 10/80
+    for i, message in enumerate(TEST_MESSAGES):
+        logging.info(f"--- Обработка сообщения {i+1}/{total_messages} ---")
+        # logging.debug(f"Текст сообщения:\n{message}") # Можно раскомментировать для отладки
+        result = process_single_message(message)
 
-    Чизел под оз ячмень
-    По Пу 71/528
-    Отд 11 71/130
+        if result:
+            # Если извлечение успешно, добавляем результаты в общий список
+            # result - это список словарей, поэтому используем extend
+            all_extracted_data.extend(result)
+            logging.info(f"Сообщение {i+1}/{total_messages} обработано успешно, извлечено {len(result)} записей.")
+        else:
+            logging.warning(f"Не удалось обработать сообщение {i+1}/{total_messages} или извлечь из него данные.")
+        logging.info(f"--- Завершение обработки сообщения {i+1}/{total_messages} ---")
 
-    2-е диск под сах св
-    По Пу 80/1263
-    Отд 12 80/314
+    logging.info("Пакетная обработка всех сообщений завершена.")
 
-    2-е диск под оз ячмень
-    По Пу 97/819
-    Отд 17 97/179
-
-    Диск кук силос
-    По Пу 43/650
-    Отд 11 33/133
-    Отд 12 10/148
-
-    Выкаш отц форм под/г
-    Отд 12 10/22
-
-    Уборка сах св
-    Отд 12 16/16
-    Вал 473920
-    Урож 296,2
-    Диг - 19,19
-    Оз - 5,33"
-    """
-    # test_message = "Сидоров обработал 50 гектар кукурузы гербицидом Раундап на тракторе Кировец К-700 в Северном отделении вчера"
-    # test_message = "Петров ВВ, 12 га, Дискование БДМ 6х4, МТЗ-1221, отд. Южное, 16.05.2024"
-
-    logging.info(f"Обработка тестового сообщения: '{test_message}'")
-
-    result = process_single_message(test_message)
-
-    if result:
-        logging.info("--- Результат обработки ---")
-        # Используем json.dumps для красивого вывода списка словарей
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-        logging.info("Обработка завершена успешно.")
+    # Сохранение результатов в Excel, если есть данные
+    if all_extracted_data:
+        logging.info(f"Начинаем сохранение {len(all_extracted_data)} извлеченных записей в Excel...")
+        try:
+            df = pd.DataFrame(all_extracted_data)
+            output_filename = "data/reports/processing_results.xlsx"
+            df.to_excel(output_filename, index=False, engine='openpyxl')
+            logging.info(f"Результаты успешно сохранены в файл: {output_filename}")
+        except Exception as e:
+            logging.error(f"Ошибка при сохранении результатов в Excel: {e}")
+            # В случае ошибки сохранения, выведем данные в консоль как JSON для отладки
+            logging.info("--- Резервный вывод данных в формате JSON ---")
+            print(json.dumps(all_extracted_data, indent=2, ensure_ascii=False))
     else:
-        logging.error("Обработка сообщения завершилась с ошибкой.")
+        logging.warning("Нет данных для сохранения в Excel.")
