@@ -30,6 +30,8 @@ class TextGenerationClient:
 
         logging.info(f"Инициализация LLM клиента для провайдера: {self.provider}")
 
+    
+
         if self.provider == "deepseek":
             if not config.DEEPSEEK_API_KEY:
                 raise ValueError("DEEPSEEK_API_KEY не найден в конфигурации.")
@@ -96,6 +98,34 @@ class TextGenerationClient:
         else:
             raise ValueError(f"Неподдерживаемый LLM провайдер указан в конфигурации: {self.provider}")
 
+    def generate_response(self, prompt: str, temperature: float = 0.2) -> str | None:
+        """
+        Отправляет промпт к инициализированному LLM API и возвращает ответ.
+
+        Args:
+            prompt: Текст промпта для LLM.
+            temperature: Температура генерации (для воспроизводимости лучше низкая).
+
+        Returns:
+            Текстовый ответ от LLM или None в случае ошибки.
+        """
+        if not self.client:
+            logging.error("LLM клиент не инициализирован.")
+            return None
+
+        logging.info(f"Отправка запроса к {self.provider} (модель: {self.model_name}).")
+
+        if self.provider == "deepseek":
+            return self._generate_deepseek_response(prompt, temperature)
+        elif self.provider == "gemini":
+            return self._generate_gemini_response(prompt, temperature)
+        elif self.provider == "openai": # Добавляем вызов для OpenAI
+            return self._generate_openai_response(prompt, temperature)
+        else:
+            # Эта ветка не должна достигаться из-за проверки в __init__, но на всякий случай
+            logging.error(f"Неизвестный провайдер {self.provider} в generate_response.")
+            return None
+    
     def _generate_deepseek_response(self, prompt: str, temperature: float) -> str | None:
         """Генерирует ответ с использованием DeepSeek API."""
         try:
@@ -214,31 +244,5 @@ class TextGenerationClient:
             logging.error(f"Непредвиденная ошибка при запросе к {self.provider} API: {e}")
             return None
 
-    def generate_response(self, prompt: str, temperature: float = 0.2) -> str | None:
-        """
-        Отправляет промпт к инициализированному LLM API и возвращает ответ.
-
-        Args:
-            prompt: Текст промпта для LLM.
-            temperature: Температура генерации (для воспроизводимости лучше низкая).
-
-        Returns:
-            Текстовый ответ от LLM или None в случае ошибки.
-        """
-        if not self.client:
-            logging.error("LLM клиент не инициализирован.")
-            return None
-
-        logging.info(f"Отправка запроса к {self.provider} (модель: {self.model_name}).")
-
-        if self.provider == "deepseek":
-            return self._generate_deepseek_response(prompt, temperature)
-        elif self.provider == "gemini":
-            return self._generate_gemini_response(prompt, temperature)
-        elif self.provider == "openai": # Добавляем вызов для OpenAI
-            return self._generate_openai_response(prompt, temperature)
-        else:
-            # Эта ветка не должна достигаться из-за проверки в __init__, но на всякий случай
-            logging.error(f"Неизвестный провайдер {self.provider} в generate_response.")
-            return None
+    
 
