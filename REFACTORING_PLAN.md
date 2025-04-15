@@ -34,27 +34,36 @@
         *   Формирует полный текст промпта для извлечения всех записей.
     *   Функция `build_structure_analysis_prompt` на данный момент не требуется и удалена/закомментирована.
 
-3.  **`app/llm_integration/client.py`:**
-    *   Импортировать необходимые библиотеки (`google.generativeai`, `openai`, `os`, конфигурацию из `app.config`).
-    *   Создать класс или функции для инициализации LLM клиента:
-        *   При инициализации читать `PRIMARY_LLM_PROVIDER` из конфига.
-        *   В зависимости от провайдера, инициализировать *только* соответствующий клиент (DeepSeek или Gemini), используя API-ключ из конфига. Учесть, что deepseel использует библиотеку openai и возможно мы будем также использовать модели от openai. в таком случае нам надо будет только менять ключи + ссылку на провайдера. 
-        *   Хранить активный клиент.
-    *   Реализовать функцию `generate_response(prompt: str) -> str`:
+3.  **`app/llm_integration/client.py` (и связанные модули):** - **Готово**
+    *   Импортированы необходимые библиотеки (`google.generativeai`, `openai`, `os`, конфигурация из `app.config`).
+    *   Создан класс `TextGenerationClient` (`app/llm_integration/client.py`):
+        *   При инициализации читает `PRIMARY_LLM_PROVIDER` из конфига.
+        *   В зависимости от провайдера (deepseek/gemini), инициализирует соответствующий клиент, используя API-ключ из конфига.
+        *   Хранит активный клиент и модель.
+    *   Реализован метод `generate_response(prompt: str) -> str | None`:
         *   Принимает готовый текст промпта.
-        *   Использует *активный* клиент для отправки запроса к LLM API.
+        *   Использует *активный* клиент для отправки запроса к LLM API (DeepSeek или Gemini).
+        *   Логика для каждого провайдера вынесена в приватные методы (`_generate_deepseek_response`, `_generate_gemini_response`).
         *   Обрабатывает возможные ошибки API.
-        *   Возвращает текстовый ответ от LLM.
+        *   Возвращает текстовый ответ от LLM или None.
 
-4.  **`app/llm_integration/extractor.py`:**
-    *   Импортировать `json`.
-    *   Реализовать функцию `extract_json_list(llm_response: str) -> list | None`:
-        *   Принимает текстовый ответ от LLM.
-        *   Пытается очистить ответ от возможных ```json ``` маркеров.
-        *   Парсит строку как JSON-список.
+3.1. **Добавлен клиент для OpenAI Schema Extraction:** - **Готово**
+    *   Создан `app/llm_integration/constants.py`:
+        *   Содержит константы `OPENAI_REPORT_SCHEMA` (JSON схема) и `OPENAI_SCHEMA_PROMPT` (шаблон промпта).
+    *   Создан `app/llm_integration/openai_extractor.py`:
+        *   Содержит класс `OpenAISchemaExtractor`.
+        *   Инициализируется с клиентом `openai.OpenAI`.
+        *   Реализован метод `extract_data(...)`, использующий OpenAI Responses API (`client.responses.create`) с передачей схемы в параметре `text`, для извлечения структурированных данных согласно `OPENAI_REPORT_SCHEMA`. (Этот клиент сам обрабатывает и парсит JSON ответ от OpenAI).
+
+4.  **`app/llm_integration/extractor.py`:** - **Готово**
+    *   Импортирован `json` и `logging`.
+    *   Реализована функция `extract_json_list(llm_response: str) -> list | None`:
+        *   Принимает текстовый ответ от LLM (полученный от `TextGenerationClient`).
+        *   Пытается очистить ответ от возможных ```json ``` маркеров или другого лишнего текста.
+        *   Парсит очищенную строку как JSON-список.
         *   Обрабатывает ошибки `json.JSONDecodeError`.
         *   Возвращает список словарей или `None` при ошибке.
-    *   Реализовать функцию `extract_json_object(llm_response: str) -> dict | None`:
+    *   Реализован метод `extract_json_object(llm_response: str) -> dict | None`:
         *   Аналогично `extract_json_list`, но парсит как JSON-объект (словарь).
 
 5.  **`app/message_processing/` (`parser.py`, `validator.py`):**
