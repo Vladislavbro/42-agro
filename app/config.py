@@ -5,11 +5,11 @@ from dotenv import load_dotenv
 # Ищем .env файл начиная с директории, где находится config.py, и поднимаясь выше
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env') # Путь к .env в корне проекта
 if os.path.exists(dotenv_path):
-    load_dotenv(dotenv_path=dotenv_path)
+    load_dotenv(dotenv_path=dotenv_path, override=True)
 else:
     # Если .env не найден в корне, попробуем загрузить из текущей директории 
     # (на случай запуска скриптов не из корня)
-    load_dotenv() 
+    load_dotenv(override=True) 
 
 # --- LLM Configuration ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
