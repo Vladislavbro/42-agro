@@ -15,8 +15,14 @@ else:
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 # Можно добавить DEEPSEEK_API_BASE, если планируете использовать
-# DEEPSEEK_API_BASE = os.getenv("DEEPSEEK_API_BASE") 
+DEEPSEEK_API_BASE = os.getenv("DEEPSEEK_API_BASE") # Добавляем загрузку base_url для DeepSeek
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") # Добавляем загрузку ключа OpenAI
 PRIMARY_LLM_PROVIDER = os.getenv("PRIMARY_LLM_PROVIDER", "deepseek").lower() # По умолчанию deepseek
+
+# --- Model Names --- (Заданы константами)
+DEEPSEEK_MODEL_NAME = "deepseek-chat"
+GEMINI_MODEL_NAME = "gemini-2.0-flash" # Используем указанную модель
+OPENAI_MODEL_NAME = "gpt-4.1-mini" # Используем указанную модель
 
 # --- Google Sheets Configuration ---
 GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
@@ -35,8 +41,9 @@ DEPARTMENTS_FILE_PATH = os.path.join(DATA_DIR, "departments.json")
 # --- Validation (Optional but recommended) ---
 # Проверка наличия обязательных переменных
 REQUIRED_ENV_VARS = {
-    "deepseek": ["DEEPSEEK_API_KEY"],
+    "deepseek": ["DEEPSEEK_API_KEY", "DEEPSEEK_API_BASE"], # Добавляем DEEPSEEK_API_BASE как обязательный для deepseek
     "gemini": ["GEMINI_API_KEY"],
+    "openai": ["OPENAI_API_KEY"], # Добавляем проверку для openai
     "google": ["GOOGLE_SHEET_ID", "GOOGLE_APPLICATION_CREDENTIALS"]
 }
 
@@ -47,6 +54,10 @@ if PRIMARY_LLM_PROVIDER == "deepseek":
             missing_vars.append(var)
 elif PRIMARY_LLM_PROVIDER == "gemini":
      for var in REQUIRED_ENV_VARS["gemini"]:
+        if not globals().get(var):
+            missing_vars.append(var)
+elif PRIMARY_LLM_PROVIDER == "openai": # Добавляем проверку для openai
+    for var in REQUIRED_ENV_VARS["openai"]:
         if not globals().get(var):
             missing_vars.append(var)
 
