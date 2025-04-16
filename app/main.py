@@ -14,45 +14,53 @@ from app.message_processing.processor import process_single_message # Импор
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 if __name__ == "__main__":
-    # Список для хранения всех извлеченных данных
-    all_extracted_data = []
     total_messages = len(TEST_MESSAGES)
     logging.info(f"Начало пакетной обработки {total_messages} сообщений...")
 
-    for i, message in enumerate(TEST_MESSAGES):
-        logging.info(f"--- Обработка сообщения {i+1}/{total_messages} ---")
-        # logging.debug(f"Текст сообщения:\n{message}") # Можно раскомментировать для отладки
-        result = process_single_message(message)
+    output_filename = "data/reports/processing_results.xlsx"
+    output_dir = os.path.dirname(output_filename)
+    os.makedirs(output_dir, exist_ok=True)
 
-        if result:
-            # Если извлечение успешно, добавляем результаты в общий список
-            # result - это список словарей, поэтому используем extend
-            all_extracted_data.extend(result)
-            logging.info(f"Сообщение {i+1}/{total_messages} обработано успешно, извлечено {len(result)} записей.")
-        else:
-            logging.warning(f"Не удалось обработать сообщение {i+1}/{total_messages} или извлечь из него данные.")
-        logging.info(f"--- Завершение обработки сообщения {i+1}/{total_messages} ---")
+    startrow = 0
+    header_written = False
+    data_written = False # Флаг для проверки, были ли записаны какие-либо данные
 
-    logging.info("Пакетная обработка всех сообщений завершена.")
+    # Используем ExcelWriter для добавления DataFrame'ов
+    try:
+        with pd.ExcelWriter(output_filename, engine='openpyxl') as writer:
+            for i, message in enumerate(TEST_MESSAGES):
+                logging.info(f"--- Обработка сообщения {i+1}/{total_messages} ---")
+                result = process_single_message(message)
 
-    # Сохранение результатов в Excel, если есть данные
-    if all_extracted_data:
-        logging.info(f"Начинаем сохранение {len(all_extracted_data)} извлеченных записей в Excel...")
-        try:
-            df = pd.DataFrame(all_extracted_data)
-            output_filename = "data/reports/processing_results.xlsx"
-            # Убедимся, что директория для сохранения существует
-            output_dir = os.path.dirname(output_filename)
-            os.makedirs(output_dir, exist_ok=True)
-            df.to_excel(output_filename, index=False, engine='openpyxl')
-            logging.info(f"Результаты успешно сохранены в файл: {output_filename}")
-            
-            # Загружаем на Google Drive
-            upload_to_drive(output_filename)
-        except Exception as e:
-            logging.error(f"Ошибка при сохранении результатов в Excel: {e}")
-            # В случае ошибки сохранения, выведем данные в консоль как JSON для отладки
-            logging.info("--- Резервный вывод данных в формате JSON ---")
-            print(json.dumps(all_extracted_data, indent=2, ensure_ascii=False))
-    else:
-        logging.warning("Нет данных для сохранения в Excel.")
+                if result:
+                    logging.info(f"Сообщение {i+1}/{total_messages} обработано успешно, извлечено {len(result)} записей.")
+                    df_message = pd.DataFrame(result)
+
+                    # Запись DataFrame на лист Excel
+                    df_message.to_excel(writer,
+                                        sheet_name='Results', # Укажем имя листа
+                                        startrow=startrow,
+                                        index=False,
+                                        header=not header_written) # Записываем заголовок только первый раз
+                    data_written = True # Отмечаем, что данные были записаны
+                    header_written = True # Заголовок теперь записан
+
+                    # Обновляем startrow для следующего DataFrame, добавляя 1 для пустой строки
+                    startrow += len(df_message) + 1
+                else:
+                    logging.warning(f"Не удалось обработать сообщение {i+1}/{total_messages} или извлечь из него данные.")
+                logging.info(f"--- Завершение обработки сообщения {i+1}/{total_messages} ---")
+
+            logging.info("Пакетная обработка всех сообщений завершена.")
+            if data_written:
+                 logging.info(f"Результаты успешно сохранены в файл: {output_filename}")
+            else:
+                logging.warning("Нет данных для сохранения в Excel.")
+                # Если данные не были записаны, менеджер контекста ExcelWriter сохранит пустой файл.
+                # Можно его удалить или оставить пустым. Пока оставим пустым.
+
+    except Exception as e:
+        logging.error(f"Ошибка при записи в Excel: {e}")
+        # Резервный вывод JSON здесь может быть менее полезен, так как данные не агрегировались.
+        # Возможно, стоит просто записать ошибку и выйти или попытаться сохранить то, что было обработано до ошибки.
+        # Пока просто логируем ошибку.
