@@ -2,6 +2,8 @@
 import os
 import logging
 import datetime # Добавил datetime для примера
+import asyncio # Добавлено
+import aiohttp # Добавлено
 from openai import OpenAI, APITimeoutError, APIConnectionError, RateLimitError, APIStatusError
 
 try:
@@ -24,30 +26,25 @@ class TextGenerationClient:
     def __init__(self):
         """Инициализирует клиент LLM на основе настроек в config."""
         self.provider = config.PRIMARY_LLM_PROVIDER
-        self.client = None
-        self.model_name = None # Модель будет определена при инициализации
+        self.client = None # Синхронный клиент
+        self.model_name = None
+        self.api_key = None # Добавлено
+        self.base_url = None # Добавлено
 
         logging.info(f"Инициализация LLM клиента для провайдера: {self.provider}")
 
         if self.provider == "deepseek":
-            if not config.DEEPSEEK_API_KEY:
+            self.api_key = config.DEEPSEEK_API_KEY # Сохраняем ключ
+            if not self.api_key:
                 raise ValueError("DEEPSEEK_API_KEY не найден в конфигурации.")
             try:
                 # Укажем base_url, если он есть в конфиге
-                base_url = getattr(config, 'DEEPSEEK_API_BASE', None) # Используем getattr для опциональной переменной
-                if base_url:
-                     self.client = OpenAI(
-                        api_key=config.DEEPSEEK_API_KEY,
-                        base_url=base_url
-                    )
-                     logging.info(f"Используется DeepSeek API с базовым URL: {base_url}")
-                else:
-                     self.client = OpenAI(
-                        api_key=config.DEEPSEEK_API_KEY,
-                        base_url="https://api.deepseek.com/v1" # Стандартный URL DeepSeek
-                    )
-                     logging.info("Используется стандартный DeepSeek API URL.")
-
+                self.base_url = getattr(config, 'DEEPSEEK_API_BASE', "https://api.deepseek.com/v1") # Сохраняем URL
+                self.client = OpenAI(
+                    api_key=self.api_key,
+                    base_url=self.base_url
+                )
+                logging.info(f"Используется DeepSeek API с базовым URL: {self.base_url}")
                 # Используем имя модели из конфига
                 self.model_name = config.DEEPSEEK_MODEL_NAME
                 # Проверка доступности модели (опционально, может вызвать ошибку если API недоступен)
@@ -58,10 +55,16 @@ class TextGenerationClient:
                 raise ConnectionError(f"Не удалось инициализировать клиент DeepSeek: {e}")
 
         elif self.provider == "openai": # Обработка OpenAI
-            if not config.OPENAI_API_KEY:
+            self.api_key = config.OPENAI_API_KEY # Сохраняем ключ
+            if not self.api_key:
                 raise ValueError("OPENAI_API_KEY не найден в конфигурации.")
             try:
-                self.client = OpenAI(api_key=config.OPENAI_API_KEY)
+                # Для OpenAI стандартный base_url обычно не указывается явно при использовании библиотеки,
+                # но для единообразия и прямого HTTP-запроса его можно определить.
+                # Библиотека openai сама формирует URL, но для aiohttp он нам нужен.
+                # Предположим стандартный URL OpenAI API v1.
+                self.base_url = "https://api.openai.com/v1" # Сохраняем стандартный URL
+                self.client = OpenAI(api_key=self.api_key) # Оставляем синхронный клиент
                 self.model_name = config.OPENAI_MODEL_NAME
                 logging.info(f"Клиент OpenAI успешно инициализирован для модели: {self.model_name}")
             except Exception as e:
@@ -133,6 +136,76 @@ class TextGenerationClient:
              return None
         except Exception as e:
             logging.error(f"Непредвиденная ошибка при запросе к {self.provider} API: {e}")
+            return None
+
+    async def generate_response_async(self, session: aiohttp.ClientSession, prompt: str, temperature: float = 0.2) -> str | None:
+        """
+        Асинхронно отправляет промпт к инициализированному LLM API через aiohttp и возвращает ответ.
+
+        Args:
+            session: Экземпляр aiohttp.ClientSession.
+            prompt: Текст промпта для LLM.
+            temperature: Температура генерации.
+
+        Returns:
+            Текстовый ответ от LLM или None в случае ошибки.
+        """
+        if not self.api_key or not self.base_url:
+            logging.error("LLM клиент не полностью инициализирован для асинхронного запроса (api_key или base_url отсутствует).")
+            return None
+
+        logging.info(f"Асинхронная отправка запроса к {self.provider} (модель: {self.model_name}).")
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": self.model_name,
+            "messages": [
+                {"role": "system", "content": "You are an AI assistant designed to extract structured data from agricultural reports according to specific instructions and format."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": temperature,
+            # "max_tokens": ... # Можно добавить ограничение
+        }
+        # Формируем полный URL для эндпоинта чата
+        chat_url = f"{self.base_url.rstrip('/')}/chat/completions"
+
+        try:
+            # Устанавливаем таймаут для запроса
+            timeout = aiohttp.ClientTimeout(total=60) # 60 секунд общий таймаут
+            async with session.post(chat_url, headers=headers, json=payload, timeout=timeout) as response:
+                # response.raise_for_status() # Проверяет статус ответа (4xx, 5xx) и вызывает исключение
+                if response.status == 200:
+                    data = await response.json()
+                    # logging.debug(f"Полный асинхронный ответ {self.provider}: {data}")
+                    if data.get("choices"):
+                        content = data["choices"][0].get("message", {}).get("content")
+                        if content:
+                             logging.info(f"Получен асинхронный ответ от {self.provider}.")
+                             return content.strip()
+                        else:
+                             logging.warning(f"{self.provider} вернул ответ без 'content' в 'message'.")
+                             return None
+                    else:
+                        logging.warning(f"{self.provider} вернул ответ без 'choices'. Ответ: {data}")
+                        return None
+                else:
+                    error_text = await response.text()
+                    logging.error(f"Ошибка от {self.provider} API. Статус: {response.status}, Ответ: {error_text}")
+                    return None
+        except asyncio.TimeoutError:
+            logging.error(f"Ошибка: Запрос к {self.provider} API ({chat_url}) превысил таймаут.")
+            return None
+        except aiohttp.ClientConnectorError as e:
+            logging.error(f"Ошибка соединения при запросе к {self.provider} API ({chat_url}): {e}")
+            return None
+        except aiohttp.ClientResponseError as e: # Обработка ошибок, возбуждаемых raise_for_status()
+            logging.error(f"Ошибка ответа от {self.provider} API ({chat_url}). Статус: {e.status}, Сообщение: {e.message}")
+            return None
+        except Exception as e:
+            logging.error(f"Непредвиденная ошибка при асинхронном запросе к {self.provider} API ({chat_url}): {e}")
             return None
 
     
