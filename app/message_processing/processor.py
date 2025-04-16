@@ -1,5 +1,7 @@
 import datetime
 import logging
+import pandas as pd
+import os
 
 from app import config
 from app.llm_integration.client import TextGenerationClient
@@ -71,4 +73,52 @@ def process_single_message(message: str):
             return None
     else:
         logging.error("Не удалось получить ответ от LLM.")
-        return None 
+        return None
+
+
+def process_batch(messages: list[str], output_filename: str):
+    """
+    Обрабатывает список сообщений и сохраняет результаты в Excel файл.
+    """
+    total_messages = len(messages)
+    logging.info(f"Начало пакетной обработки {total_messages} сообщений...")
+
+    output_dir = os.path.dirname(output_filename)
+    os.makedirs(output_dir, exist_ok=True)
+
+    startrow = 0
+    header_written = False
+    data_written = False
+
+    try:
+        with pd.ExcelWriter(output_filename, engine='openpyxl') as writer:
+            for i, message in enumerate(messages):
+                logging.info(f"--- Обработка сообщения {i+1}/{total_messages} ---")
+                result = process_single_message(message)
+
+                if result:
+                    logging.info(f"Сообщение {i+1}/{total_messages} обработано успешно, извлечено {len(result)} записей.")
+                    df_message = pd.DataFrame(result)
+
+                    df_message.to_excel(writer,
+                                        sheet_name='Results',
+                                        startrow=startrow,
+                                        index=False,
+                                        header=not header_written)
+                    data_written = True
+                    header_written = True
+
+                    startrow += len(df_message) + 1
+                else:
+                    logging.warning(f"Не удалось обработать сообщение {i+1}/{total_messages} или извлечь из него данные.")
+                logging.info(f"--- Завершение обработки сообщения {i+1}/{total_messages} ---")
+
+            logging.info("Пакетная обработка всех сообщений завершена.")
+            if data_written:
+                logging.info(f"Результаты успешно сохранены в файл: {output_filename}")
+            else:
+                logging.warning("Нет данных для сохранения в Excel.")
+        return True
+    except Exception as e:
+        logging.error(f"Ошибка при записи в Excel: {e}")
+        return False 

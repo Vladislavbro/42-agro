@@ -12,16 +12,13 @@ else:
     load_dotenv(override=True) 
 
 # --- LLM Configuration ---
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-# Можно добавить DEEPSEEK_API_BASE, если планируете использовать
 DEEPSEEK_API_BASE = os.getenv("DEEPSEEK_API_BASE") # Добавляем загрузку base_url для DeepSeek
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") # Добавляем загрузку ключа OpenAI
 PRIMARY_LLM_PROVIDER = os.getenv("PRIMARY_LLM_PROVIDER", "deepseek").lower() # По умолчанию deepseek
 
 # --- Model Names --- (Загружаем из .env с дефолтами)
 DEEPSEEK_MODEL_NAME = os.getenv("DEEPSEEK_MODEL_NAME", "deepseek-chat")
-GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.0-flash") # Используем указанную модель
 OPENAI_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "gpt-4.1-mini") # Используем указанную модель
 
 # --- Google Sheets Configuration ---
@@ -46,18 +43,12 @@ DEPARTMENTS_FILE_PATH = os.path.join(DATA_DIR, "departments.json")
 # Проверка наличия обязательных переменных
 REQUIRED_ENV_VARS = {
     "deepseek": ["DEEPSEEK_API_KEY", "DEEPSEEK_API_BASE"], # Добавляем DEEPSEEK_API_BASE как обязательный для deepseek
-    "gemini": ["GEMINI_API_KEY"],
     "openai": ["OPENAI_API_KEY"], # Добавляем проверку для openai
-    # "google": ["GOOGLE_SHEET_ID", "GOOGLE_APPLICATION_CREDENTIALS"]
 }
 
 missing_vars = []
 if PRIMARY_LLM_PROVIDER == "deepseek":
     for var in REQUIRED_ENV_VARS["deepseek"]:
-        if not globals().get(var):
-            missing_vars.append(var)
-elif PRIMARY_LLM_PROVIDER == "gemini":
-     for var in REQUIRED_ENV_VARS["gemini"]:
         if not globals().get(var):
             missing_vars.append(var)
 elif PRIMARY_LLM_PROVIDER == "openai": # Добавляем проверку для openai
@@ -76,10 +67,4 @@ if missing_vars:
         f"Проверьте ваш .env файл."
     )
 
-if GOOGLE_APPLICATION_CREDENTIALS and not os.path.exists(GOOGLE_APPLICATION_CREDENTIALS):
-     print(
-         f"Внимание: Файл учетных данных Google '{GOOGLE_APPLICATION_CREDENTIALS}' не найден. "
-         f"Убедитесь, что путь в .env указан верно."
-     )
-     # Можно либо выбросить исключение, либо просто предупредить
-     # raise FileNotFoundError(f"Файл учетных данных Google не найден: {GOOGLE_APPLICATION_CREDENTIALS}")
+
