@@ -55,7 +55,7 @@ if __name__ == "__main__":
             if data_written:
                 logging.info(f"Результаты успешно сохранены в файл: {output_filename}")           
                 # Загружаем на Google Drive
-                upload_to_drive(output_filename)
+                # upload_to_drive(output_filename)
             else:
                 logging.warning("Нет данных для сохранения в Excel.")
                 # Если данные не были записаны, менеджер контекста ExcelWriter сохранит пустой файл.
