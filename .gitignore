@@ -24,3 +24,5 @@ Openai-json.md
 .DS_Store
 
 data/reports/
+
+client_secrets.json
