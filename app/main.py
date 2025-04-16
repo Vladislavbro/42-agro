@@ -6,6 +6,7 @@ import os
 # Импортируем наши модули
 # Удалены импорты TextGenerationClient, load_mapping_file, build_detailed_extraction_prompt, extract_json_list, config
 # Удален импорт datetime
+from app.utils.google_drive_uploader import upload_to_drive
 from data.test_messages import TEST_MESSAGES # Импортируем тестовые сообщения из корневой папки data
 from app.message_processing.processor import process_single_message # Импортируем функцию обработки
 
@@ -45,6 +46,9 @@ if __name__ == "__main__":
             os.makedirs(output_dir, exist_ok=True)
             df.to_excel(output_filename, index=False, engine='openpyxl')
             logging.info(f"Результаты успешно сохранены в файл: {output_filename}")
+            
+            # Загружаем на Google Drive
+            upload_to_drive(output_filename)
         except Exception as e:
             logging.error(f"Ошибка при сохранении результатов в Excel: {e}")
             # В случае ошибки сохранения, выведем данные в консоль как JSON для отладки
