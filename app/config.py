@@ -29,6 +29,10 @@ GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 # GOOGLE_SHEET_RANGE = os.getenv("GOOGLE_SHEET_RANGE", "Sheet1!A1") # Если нужен диапазон
 
+# --- Google Drive Folder Path ---
+GOOGLE_DRIVE_FOLDER_URL = os.getenv("GOOGLE_DRIVE_FOLDER_URL")
+
+
 # --- Data Files Paths ---
 # Определяем базовую директорию проекта (где лежит .env или config.py)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # Корень проекта
@@ -44,7 +48,7 @@ REQUIRED_ENV_VARS = {
     "deepseek": ["DEEPSEEK_API_KEY", "DEEPSEEK_API_BASE"], # Добавляем DEEPSEEK_API_BASE как обязательный для deepseek
     "gemini": ["GEMINI_API_KEY"],
     "openai": ["OPENAI_API_KEY"], # Добавляем проверку для openai
-    "google": ["GOOGLE_SHEET_ID", "GOOGLE_APPLICATION_CREDENTIALS"]
+    # "google": ["GOOGLE_SHEET_ID", "GOOGLE_APPLICATION_CREDENTIALS"]
 }
 
 missing_vars = []
@@ -60,10 +64,11 @@ elif PRIMARY_LLM_PROVIDER == "openai": # Добавляем проверку д�
     for var in REQUIRED_ENV_VARS["openai"]:
         if not globals().get(var):
             missing_vars.append(var)
-
+'''
 for var in REQUIRED_ENV_VARS["google"]:
      if not globals().get(var):
          missing_vars.append(var)
+'''
 
 if missing_vars:
     raise EnvironmentError(

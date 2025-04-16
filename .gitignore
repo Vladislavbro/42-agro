@@ -25,4 +25,6 @@ Openai-json.md
 
 data/reports/
 
-client_secrets.json
+
+# Secrets
+app/client_secrets.json
