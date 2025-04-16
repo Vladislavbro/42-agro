@@ -2,6 +2,7 @@ import datetime
 import logging
 import json # Добавим импорт json для красивого вывода
 import pandas as pd # Добавим импорт pandas
+import os
 
 # Импортируем наши модули
 from app import config
@@ -107,6 +108,9 @@ if __name__ == "__main__":
         try:
             df = pd.DataFrame(all_extracted_data)
             output_filename = "data/reports/processing_results.xlsx"
+            # Убедимся, что директория для сохранения существует
+            output_dir = os.path.dirname(output_filename)
+            os.makedirs(output_dir, exist_ok=True)
             df.to_excel(output_filename, index=False, engine='openpyxl')
             logging.info(f"Результаты успешно сохранены в файл: {output_filename}")
         except Exception as e:
