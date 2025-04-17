@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.schemas import RawMessagesIn, Report
 from app.models import Message as MessageModel, ReportModel
 from app.core.database import SessionLocal
-from app.message_processing.processor import process_single_message
+from app.message_processing.processor import process_single_message_async
 
 router = APIRouter(tags=["messages"])
 
@@ -39,7 +39,7 @@ async def incoming_messages(
     all_reports = []
     for msg in saved:
         try:
-            extracted: list[dict] = process_single_message(msg.text)
+            extracted: list[dict] = process_single_message_async(msg.text)
         except Exception as e:
             # Превращаем любые ошибки в HTTP 500
             raise HTTPException(status_code=500, detail=str(e))
