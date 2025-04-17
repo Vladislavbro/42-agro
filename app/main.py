@@ -3,6 +3,7 @@ import json # Добавим импорт json для красивого выв�
 import os
 import asyncio # Добавлено
 
+from app.config import REPORT_OUTPUT_PATH # Импортируем путь к отчету
 from app.utils.google_drive_uploader import upload_to_drive
 from data.test_messages import TEST_MESSAGES # Импортируем тестовые сообщения из корневой папки data
 from app.message_processing.processor import process_batch_async # Новая асинхронная функция
@@ -11,22 +12,20 @@ from app.message_processing.processor import process_batch_async # Новая а
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 async def main(): # Оборачиваем в async def
-    output_filename = "data/reports/processing_results.xlsx"
 
     # Вызываем АСИНХРОННУЮ функцию пакетной обработки
-    # success = process_batch(TEST_MESSAGES, output_filename) # Старый вызов
     logging.info("Запуск асинхронной обработки...")
-    success = await process_batch_async(TEST_MESSAGES, output_filename)
+    success = await process_batch_async(TEST_MESSAGES, REPORT_OUTPUT_PATH) # Используем переменную из конфига
 
     if success:
         logging.info("Асинхронная пакетная обработка сообщений завершена успешно.")
         # Загрузка на Google Drive происходит здесь, если обработка прошла успешно
-        if os.path.exists(output_filename) and os.path.getsize(output_filename) > 0:
-            logging.info(f"Запуск загрузки файла {output_filename} на Google Drive...")
-            # upload_to_drive(output_filename) # Раскомментировать для включения загрузки
-            logging.info("Загрузка (симуляция) завершена.") # Заглушка
-        else:
-            logging.warning("Файл отчета пуст или не создан после асинхронной обработки, загрузка на Google Drive отменена.")
+        # if os.path.exists(REPORT_OUTPUT_PATH) and os.path.getsize(REPORT_OUTPUT_PATH) > 0: # Используем переменную из конфига
+        #     logging.info(f"Запуск загрузки файла {REPORT_OUTPUT_PATH} на Google Drive...") # Используем переменную из конфига
+        #     # upload_to_drive(REPORT_OUTPUT_PATH) # Раскомментировать для включения загрузки
+        #     logging.info("Загрузка (симуляция) завершена.") # Заглушка
+        # else:
+        #     logging.warning("Файл отчета пуст или не создан после асинхронной обработки, загрузка на Google Drive отменена.")
     else:
         logging.error("Асинхронная пакетная обработка сообщений завершилась с ошибкой.")
 
