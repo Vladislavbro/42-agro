@@ -71,10 +71,9 @@ async def process_single_message_async(
         return None # Возвращаем None при ошибке
 
 
-async def process_batch_async(messages: list[str], output_filename: str, run_quality_test: bool = True) -> bool:
+async def process_batch_async(messages: list[str], run_quality_test: bool = True) -> list | None:
     """
-    Асинхронно обрабатывает список сообщений, сохраняет результаты в Excel файл
-    и опционально запускает тест качества.
+    Асинхронно обрабатывает список сообщений и возвращает список извлеченных JSON-объектов.
     """
     total_messages = len(messages)
     logging.info(f"Начало АСИНХРОННОЙ пакетной обработки {total_messages} сообщений...")
@@ -96,7 +95,7 @@ async def process_batch_async(messages: list[str], output_filename: str, run_qua
         }
     except Exception as e:
         logging.error(f"Критическая ошибка: Не удалось инициализировать клиента LLM: {e}")
-        return False
+        return None
 
     # 2. Загрузка справочников и базового промпта (один раз)
     logging.info("Загрузка справочников и базового промпта...")
@@ -110,10 +109,10 @@ async def process_batch_async(messages: list[str], output_filename: str, run_qua
         logging.info("Справочники и базовый промпт успешно загружены.")
     except FileNotFoundError as e:
         logging.error(f"Критическая ошибка: Файл справочника не найден - {e}")
-        return False
+        return None
     except Exception as e:
         logging.error(f"Критическая ошибка при загрузке справочников или промпта: {e}")
-        return False
+        return None
 
     current_date = datetime.date.today().strftime('%Y-%m-%d')
     logging.info(f"Текущая дата: {current_date}")
@@ -163,75 +162,8 @@ async def process_batch_async(messages: list[str], output_filename: str, run_qua
 
     logging.info(f"Обработка завершена. Успешно: {successful_count}, Неудачно/Нет данных: {failed_count}")
 
-    # 6. Сохранение результатов в Excel
-    processing_successful = False
     if not all_extracted_data:
-        logging.warning("Нет данных для сохранения в Excel после асинхронной обработки.")
-        processing_successful = False
-    else:
-        record_count = len(all_extracted_data)
-        logging.info(f"Подготовка {record_count} извлеченных записей для сохранения в Excel с пустыми строками...")
-        try:
-            # 1. Создаем исходный DataFrame
-            df_initial = pd.DataFrame(all_extracted_data)
+        logging.warning("Данные не были извлечены ни из одного сообщения.")
+        return None # Возвращаем None, если список пуст
 
-            if not df_initial.empty:
-                # 2. Создаем пустой DataFrame (одна строка с NaN)
-                empty_df = pd.DataFrame([[None] * len(df_initial.columns)], columns=df_initial.columns)
-
-                # 3. Создаем список DataFrame'ов: [строка1, пустая, строка2, пустая, ... , строкаN]
-                dfs_list = []
-                for i in range(len(df_initial)):
-                    dfs_list.append(df_initial.iloc[[i]]) # Берем i-ую строку как DataFrame
-                    if i < len(df_initial) - 1: # Добавляем пустой DataFrame после каждой строки, кроме последней
-                        dfs_list.append(empty_df)
-
-                # 4. Объединяем список DataFrame'ов
-                df_final = pd.concat(dfs_list, ignore_index=True)
-            else:
-                 df_final = df_initial # Если исходный DataFrame пуст, оставляем его пустым
-
-            # Сохраняем результат
-            logging.info(f"Сохранение DataFrame (включая пустые строки) в Excel...")
-            output_dir = os.path.dirname(output_filename)
-            os.makedirs(output_dir, exist_ok=True)
-
-            with pd.ExcelWriter(output_filename, engine='openpyxl') as writer:
-                df_final.to_excel(writer, sheet_name='Results', index=False, header=True)
-
-            logging.info(f"Результаты успешно сохранены в файл: {output_filename}")
-            processing_successful = True
-
-        except Exception as e:
-            logging.error(f"Ошибка при обработке данных и записи в Excel: {e}")
-            processing_successful = False
-
-    # 7. Запуск теста качества (если обработка прошла успешно и флаг установлен)
-    if processing_successful and run_quality_test:
-        logging.info("Запуск теста качества...")
-        # Определяем пути для теста
-        # Используем config для путей, если они там определены, иначе строим относительно корня
-        project_root = config.BASE_DIR # Предполагаем, что BASE_DIR определен в config
-        benchmark_file_path = getattr(config, 'BENCHMARK_FILE_PATH', 
-                                      os.path.join(project_root, "data", "reports", "benchmark-report.xlsx"))
-        quality_test_output_dir = getattr(config, 'QUALITY_TEST_DIR', 
-                                            os.path.join(project_root, "llm_quality_tests"))
-        
-        # Убедимся, что директория для тестов существует
-        os.makedirs(quality_test_output_dir, exist_ok=True)
-
-        # Вызываем функцию сохранения результатов теста
-        save_quality_test_results(
-            benchmark_file_path=benchmark_file_path,
-            processing_file_path=output_filename, # Файл, который только что создали
-            output_dir_base=quality_test_output_dir,
-            prompt_text=base_prompt_template, # Передаем шаблон промпта, а не форматированный
-            llm_settings=llm_settings, # Передаем собранные настройки
-            provider_name=llm_client.provider # <<< Добавлено имя провайдера
-        )
-    elif not processing_successful:
-         logging.warning("Пропускаем тест качества, так как не было данных для сохранения в Excel.")
-    elif not run_quality_test:
-         logging.info("Пропускаем тест качества, так как флаг run_quality_test=False.")
-
-    return processing_successful # Возвращаем True, если Excel файл был успешно создан 
+    return all_extracted_data # Возвращаем список извлеченных данных 
