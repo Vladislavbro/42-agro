@@ -34,3 +34,14 @@ data/reports/*.xlsx
 
 # Markdown exports
 Openai-json.md
+
+.DS_Store
+
+data/reports/
+
+
+# Secrets
+app/client_secrets.json
+
+data/llm_quality_test/
+
