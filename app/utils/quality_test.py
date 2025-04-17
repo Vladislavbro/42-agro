@@ -3,6 +3,7 @@ import os
 import json
 import datetime
 import logging
+import shutil
 
 def calculate_comparison_metrics(benchmark_file_path: str, processing_file_path: str) -> dict | None:
     """
@@ -119,10 +120,11 @@ def save_quality_test_results(benchmark_file_path: str,
                               processing_file_path: str,
                               output_dir_base: str,
                               prompt_text: str,
-                              llm_settings: dict):
+                              llm_settings: dict,
+                              provider_name: str):
     """
-    Запускает тест сравнения, создает поддиректорию с F1-скором в названии (f1-X,XX)
-    и сохраняет промпт (в .py), настройки LLM и детальные метрики (в одном .json).
+    Запускает тест сравнения, создает поддиректорию с провайдером и F1-скором в названии (провайдер-f1-X,XX)
+    и сохраняет промпт (в .py), настройки LLM и детальные метрики (в одном .json) и копию файла с результатами (.xlsx).
     """
     logging.info(f"Запуск теста качества для '{os.path.basename(processing_file_path)}' относительно '{os.path.basename(benchmark_file_path)}'")
 
@@ -134,10 +136,9 @@ def save_quality_test_results(benchmark_file_path: str,
 
     f1_score = metrics_result["f1_score"]
 
-    # Создание имени поддиректории (формат f1-X,XX)
-    # timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S') # Убрали timestamp
-    f1_str_comma = f"{f1_score:.2f}".replace('.', ',') # Формат с запятой, 2 знака
-    subdir_name = f"f1-{f1_str_comma}"
+    # Создание имени поддиректории (формат провайдер-f1-X,XX)
+    f1_str_comma = f"{f1_score:.2f}".replace('.', ',')
+    subdir_name = f"{provider_name}-f1-{f1_str_comma}"
     output_subdir = os.path.join(output_dir_base, subdir_name)
 
     try:
@@ -162,7 +163,7 @@ PROMPT_TEXT = """{prompt_text}"""'''
 
         # Объединяем метрики и настройки
         results_data = {
-            "metrics": metrics_result, # Теперь содержит все метрики и кол-во строк
+            "metrics": metrics_result,
             "llm_settings": serializable_settings
         }
 
@@ -171,6 +172,16 @@ PROMPT_TEXT = """{prompt_text}"""'''
         with open(results_file_path, 'w', encoding='utf-8') as f:
             json.dump(results_data, f, indent=4, ensure_ascii=False)
         logging.info(f"Метрики и настройки LLM сохранены в: {results_file_path}")
+
+        # 3. Копирование файла с результатами (Excel)
+        excel_dest_filename = f"{subdir_name}.xlsx"
+        excel_dest_path = os.path.join(output_subdir, excel_dest_filename)
+        try:
+            shutil.copy2(processing_file_path, excel_dest_path)
+            logging.info(f"Файл с результатами скопирован в: {excel_dest_path}")
+        except Exception as copy_exc:
+            logging.error(f"Не удалось скопировать файл {processing_file_path} в {excel_dest_path}: {copy_exc}")
+            # Не прерываем выполнение, если копирование не удалось, но логируем ошибку
 
         logging.info(f"Результаты теста качества успешно сохранены в {output_subdir}")
         return output_subdir
@@ -230,7 +241,8 @@ if __name__ == "__main__":
                 processing_file_path=processing_file_test,
                 output_dir_base=quality_tests_dir,
                 prompt_text=dummy_prompt,
-                llm_settings=dummy_llm_settings
+                llm_settings=dummy_llm_settings,
+                provider_name="manual_test"
             )
             if saved_path:
                 print(f"Результаты теста сохранены в: {saved_path}")

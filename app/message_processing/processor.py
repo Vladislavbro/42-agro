@@ -316,7 +316,8 @@ async def process_batch_async(messages: list[str], output_filename: str, run_qua
             processing_file_path=output_filename, # Файл, который только что создали
             output_dir_base=quality_test_output_dir,
             prompt_text=base_prompt_template, # Передаем шаблон промпта, а не форматированный
-            llm_settings=llm_settings # Передаем собранные настройки
+            llm_settings=llm_settings, # Передаем собранные настройки
+            provider_name=llm_client.provider # <<< Добавлено имя провайдера
         )
     elif not processing_successful:
          logging.warning("Пропускаем тест качества, так как не было данных для сохранения в Excel.")
