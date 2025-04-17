@@ -9,9 +9,20 @@ from abc import ABC, abstractmethod
 
 try:
     from app import config
+    from app.llm_integration.constants import SYSTEM_ROLE_CONTENT # Импортируем константу
 except ImportError:
     # Если запуск происходит не из корня проекта, пробуем относительный импорт
     import config
+    # Попытка импорта константы при запуске не из корня (может не сработать без __init__.py)
+    try:
+        from llm_integration.constants import SYSTEM_ROLE_CONTENT
+    except ImportError:
+         # Запасной вариант, если импорт не сработал
+        SYSTEM_ROLE_CONTENT = (
+            "You are an AI assistant designed to extract structured data "
+            "from agricultural reports according to specific instructions and format."
+        )
+        logging.warning("Не удалось импортировать SYSTEM_ROLE_CONTENT из constants.py, используется значение по умолчанию.")
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -63,13 +74,11 @@ class DeepSeekClient(BaseLLMClient):
         try:
             chat_completion = self.client.chat.completions.create(
                 messages=[
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    }
+                    {"role": "system", "content": SYSTEM_ROLE_CONTENT},
+                    {"role": "user", "content": prompt}
                 ],
                 model=self.model_name,
-                temperature=temp_to_use, # Используем определенную температуру
+                temperature=temp_to_use,
             )
             response_content = chat_completion.choices[0].message.content
             logging.info("Ответ от DeepSeek получен.")
@@ -86,16 +95,15 @@ class DeepSeekClient(BaseLLMClient):
 
         temp_to_use = temperature if temperature is not None else self.temperature
         logging.info(f"Отправка асинхронного запроса к DeepSeek (модель: {self.model_name}, температура: {temp_to_use})...")
+
         try:
             chat_completion = await self.async_client.chat.completions.create(
                 messages=[
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    }
+                    {"role": "system", "content": SYSTEM_ROLE_CONTENT},
+                    {"role": "user", "content": prompt}
                 ],
                 model=self.model_name,
-                temperature=temp_to_use, # Используем определенную температуру
+                temperature=temp_to_use,
             )
             response_content = chat_completion.choices[0].message.content
             logging.info("Асинхронный ответ от DeepSeek получен.")
@@ -131,13 +139,11 @@ class OpenAIClient(BaseLLMClient):
         try:
             chat_completion = self.client.chat.completions.create(
                 messages=[
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    }
+                    {"role": "system", "content": SYSTEM_ROLE_CONTENT},
+                    {"role": "user", "content": prompt}
                 ],
                 model=self.model_name,
-                temperature=temp_to_use, # Используем определенную температуру
+                temperature=temp_to_use,
             )
             response_content = chat_completion.choices[0].message.content
             logging.info("Ответ от OpenAI получен.")
@@ -155,16 +161,13 @@ class OpenAIClient(BaseLLMClient):
         logging.info(f"Отправка асинхронного запроса к OpenAI (модель: {self.model_name}, температура: {temp_to_use})...")
 
         try:
-            # Используем await для асинхронного вызова
             chat_completion = await self.async_client.chat.completions.create(
                 messages=[
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    }
+                    {"role": "system", "content": SYSTEM_ROLE_CONTENT},
+                    {"role": "user", "content": prompt}
                 ],
                 model=self.model_name,
-                temperature=temp_to_use, # Используем определенную температуру
+                temperature=temp_to_use,
             )
             response_content = chat_completion.choices[0].message.content
             logging.info("Асинхронный ответ от OpenAI получен.")
