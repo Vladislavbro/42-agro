@@ -22,6 +22,9 @@ DEEPSEEK_MODEL_NAME = os.getenv("DEEPSEEK_MODEL_NAME", "deepseek-chat")
 OPENAI_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "gpt-4.1-mini") # Используем указанную модель
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2")) # Добавлена температура
 
+# Настройки асинхронной обработки
+MAX_CONCURRENT_REQUESTS = 1 # Максимальное количество одновременных запросов к LLM
+
 # --- Google Sheets Configuration ---
 GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
@@ -71,7 +74,6 @@ if missing_vars:
         f"Проверьте ваш .env файл."
     )
 
-# Настройки асинхронной обработки
-MAX_CONCURRENT_REQUESTS = 10 # Максимальное количество одновременных запросов к LLM
+
 
 

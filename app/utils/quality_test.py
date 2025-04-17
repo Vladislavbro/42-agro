@@ -182,29 +182,40 @@ PROMPT_TEXT = """{prompt_text}"""'''
 
 # Основная часть скрипта (остается для возможности прямого запуска теста)
 if __name__ == "__main__":
-    # Настройка логирования для теста
+    # Импортируем config здесь, чтобы избежать циклических зависимостей при импорте utils в других местах
+    try:
+        from app import config
+    except ImportError:
+        # Попытка импорта для случаев, когда структура не app.*
+        try:
+            import config
+        except ImportError:
+            config = None # Не удалось импортировать конфиг
+            logging.error("Не удалось импортировать файл конфигурации config.py при прямом запуске quality_test.py")
+    
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    # Пример использования:
-    # Определяем пути к файлам относительно корня проекта или абсолютные
-    # Предполагаем, что скрипт запускается из корня проекта
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(script_dir)) # Поднимаемся на два уровня
-    
+    project_root = os.path.dirname(os.path.dirname(script_dir))
+
     reports_dir_test = os.path.join(project_root, "data", "reports")
     benchmark_file_test = os.path.join(reports_dir_test, "benchmark-report.xlsx")
     processing_file_test = os.path.join(reports_dir_test, "processing_results.xlsx")
-    quality_tests_dir = os.path.join(project_root, "llm_quality_tests")
     
-    # Создаем директорию для тестов, если ее нет
+    # Определяем базовую директорию для тестов ИЗ КОНФИГА
+    default_quality_test_dir = os.path.join(project_root, "data", "llm_quality_test")
+    if config:
+         quality_tests_dir = getattr(config, 'QUALITY_TEST_DIR', default_quality_test_dir)
+    else:
+         quality_tests_dir = default_quality_test_dir
+         logging.warning(f"Используется путь по умолчанию для сохранения тестов: {quality_tests_dir}")
+
     os.makedirs(quality_tests_dir, exist_ok=True)
 
-    # Примерные данные для теста сохранения
     dummy_prompt = "Это тестовый промпт для __main__."
     dummy_llm_settings = {"model": "test_model_main", "temperature": 0.1}
 
     if os.path.exists(benchmark_file_test) and os.path.exists(processing_file_test):
-         # Вызываем функцию и получаем метрики
         metrics_dict = calculate_comparison_metrics(benchmark_file_test, processing_file_test)
         print(f"--- Результат calculate_comparison_metrics ---")
         if metrics_dict:
@@ -213,8 +224,7 @@ if __name__ == "__main__":
              print("Функция calculate_comparison_metrics вернула None")
         print("---")
 
-        # Вызываем функцию сохранения результатов
-        if metrics_dict: # Сохраняем только если метрики посчитались
+        if metrics_dict: 
             saved_path = save_quality_test_results(
                 benchmark_file_path=benchmark_file_test,
                 processing_file_path=processing_file_test,
