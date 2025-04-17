@@ -20,6 +20,7 @@ PRIMARY_LLM_PROVIDER = os.getenv("PRIMARY_LLM_PROVIDER", "deepseek").lower() # �
 # --- Model Names --- (Загружаем из .env с дефолтами)
 DEEPSEEK_MODEL_NAME = os.getenv("DEEPSEEK_MODEL_NAME", "deepseek-chat")
 OPENAI_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "gpt-4.1-mini") # Используем указанную модель
+LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2")) # Добавлена температура
 
 # --- Google Sheets Configuration ---
 GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
@@ -38,6 +39,9 @@ DATA_DIR = os.path.join(BASE_DIR, "data", "mappings")
 CULTURES_FILE_PATH = os.path.join(DATA_DIR, "cultures.txt")
 OPERATIONS_FILE_PATH = os.path.join(DATA_DIR, "operations.txt")
 DEPARTMENTS_FILE_PATH = os.path.join(DATA_DIR, "departments.json")
+
+# --- Quality Test Output ---
+QUALITY_TEST_DIR = os.path.join(BASE_DIR, "data", "llm_quality_test") # Папка для результатов тестов
 
 # --- Validation (Optional but recommended) ---
 # Проверка наличия обязательных переменных

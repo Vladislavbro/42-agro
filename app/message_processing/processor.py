@@ -5,11 +5,14 @@ import os
 import asyncio
 import aiohttp
 import itertools
+import json # Добавлено для llm_settings
 
 from app import config
 from app.llm_integration.client import TextGenerationClient
 from app.llm_integration.prompt_builder import load_mapping_file, build_detailed_extraction_prompt
 from app.llm_integration.extractor import extract_json_list
+from app.llm_integration.constants import DETAILED_EXTRACTION_PROMPT # Добавлен импорт промпта
+from app.utils.quality_test import save_quality_test_results # Добавлен импорт функции теста
 
 
 def process_single_message(message: str):
@@ -135,7 +138,8 @@ async def process_single_message_async(
     cultures_content: str,
     operations_content: str,
     departments_content: str,
-    current_date: str
+    current_date: str,
+    base_prompt: str # Добавлен параметр для передачи промпта
 ) -> list | None:
     """
     Асинхронно обрабатывает одно сообщение.
@@ -143,7 +147,8 @@ async def process_single_message_async(
     """
     logging.info(f"[Msg {message_index+1}] Построение промпта...")
     try:
-        prompt = build_detailed_extraction_prompt(
+        # Используем переданный базовый промпт
+        prompt = base_prompt.format(
             input_message=message,
             cultures_content=cultures_content,
             operations_content=operations_content,
@@ -157,6 +162,7 @@ async def process_single_message_async(
         return None # Возвращаем None при ошибке
 
     logging.info(f"[Msg {message_index+1}] Отправка асинхронного запроса к LLM...")
+    # Передаем сформированный промпт
     llm_response = await llm_client.generate_response_async(session, prompt)
 
     if llm_response:
@@ -169,17 +175,18 @@ async def process_single_message_async(
             return extracted_data
         else:
             logging.error(f"[Msg {message_index+1}] Не удалось извлечь JSON из ответа LLM.")
-            logging.warning(f"""[Msg {message_index+1}] Ответ LLM, из которого не удалось извлечь JSON:
-            {llm_response}""")
+            log_message = f"[Msg {message_index+1}] Ответ LLM, из которого не удалось извлечь JSON:\n{llm_response}"
+            logging.warning(log_message) # Новый вариант
             return None # Возвращаем None при ошибке
     else:
         logging.error(f"[Msg {message_index+1}] Не удалось получить ответ от LLM.")
         return None # Возвращаем None при ошибке
 
 
-async def process_batch_async(messages: list[str], output_filename: str) -> bool:
+async def process_batch_async(messages: list[str], output_filename: str, run_quality_test: bool = True) -> bool:
     """
-    Асинхронно обрабатывает список сообщений и сохраняет результаты в Excel файл.
+    Асинхронно обрабатывает список сообщений, сохраняет результаты в Excel файл
+    и опционально запускает тест качества.
     """
     total_messages = len(messages)
     logging.info(f"Начало АСИНХРОННОЙ пакетной обработки {total_messages} сообщений...")
@@ -189,23 +196,35 @@ async def process_batch_async(messages: list[str], output_filename: str) -> bool
     try:
         llm_client = TextGenerationClient()
         logging.info(f"Клиент LLM инициализирован: Провайдер='{llm_client.provider}', Модель='{llm_client.model_name}'")
+        # Собираем настройки LLM для последующего сохранения
+        llm_settings = {
+            "provider": llm_client.provider,
+            "model_name": llm_client.model_name,
+            "temperature": llm_client.temperature, # Теперь берем сохраненную температуру
+            # Добавьте другие релевантные настройки, если они есть в TextGenerationClient
+            # и сохраняются в self при инициализации
+            # "max_tokens": getattr(llm_client, 'max_tokens', None),
+            # "top_p": getattr(llm_client, 'top_p', None),
+        }
     except Exception as e:
         logging.error(f"Критическая ошибка: Не удалось инициализировать клиента LLM: {e}")
         return False
 
-    # 2. Загрузка справочников (один раз)
-    logging.info("Загрузка справочников...")
+    # 2. Загрузка справочников и базового промпта (один раз)
+    logging.info("Загрузка справочников и базового промпта...")
     try:
         cultures_content = load_mapping_file(config.CULTURES_FILE_PATH)
         operations_content = load_mapping_file(config.OPERATIONS_FILE_PATH)
         with open(config.DEPARTMENTS_FILE_PATH, 'r', encoding='utf-8') as f:
             departments_content = f.read()
-        logging.info("Справочники успешно загружены.")
+        # Используем импортированный DETAILED_EXTRACTION_PROMPT как базовый
+        base_prompt_template = DETAILED_EXTRACTION_PROMPT
+        logging.info("Справочники и базовый промпт успешно загружены.")
     except FileNotFoundError as e:
         logging.error(f"Критическая ошибка: Файл справочника не найден - {e}")
         return False
     except Exception as e:
-        logging.error(f"Критическая ошибка при загрузке справочников: {e}")
+        logging.error(f"Критическая ошибка при загрузке справочников или промпта: {e}")
         return False
 
     current_date = datetime.date.today().strftime('%Y-%m-%d')
@@ -226,7 +245,8 @@ async def process_batch_async(messages: list[str], output_filename: str) -> bool
                     cultures_content=cultures_content,
                     operations_content=operations_content,
                     departments_content=departments_content,
-                    current_date=current_date
+                    current_date=current_date,
+                    base_prompt=base_prompt_template # Передаем базовый промпт
                 ),
                 name=f"ProcessMsg-{i+1}"
             )
@@ -256,22 +276,51 @@ async def process_batch_async(messages: list[str], output_filename: str) -> bool
     logging.info(f"Обработка завершена. Успешно: {successful_count}, Неудачно/Нет данных: {failed_count}")
 
     # 6. Сохранение результатов в Excel
+    processing_successful = False
     if not all_extracted_data:
         logging.warning("Нет данных для сохранения в Excel после асинхронной обработки.")
         # Если файл уже существует от предыдущего запуска, его стоит удалить или обработать иначе
-        # Здесь просто возвращаем True, т.к. обработка прошла, хоть и безрезультатно для файла
-        return True
+        # Здесь просто считаем, что обработка прошла, но не успешно с точки зрения наличия данных
+        processing_successful = False
+    else:
+        logging.info(f"Сохранение {len(all_extracted_data)} извлеченных записей в Excel...")
+        output_dir = os.path.dirname(output_filename)
+        os.makedirs(output_dir, exist_ok=True)
+        try:
+            df_final = pd.DataFrame(all_extracted_data)
+            with pd.ExcelWriter(output_filename, engine='openpyxl') as writer:
+                df_final.to_excel(writer, sheet_name='Results', index=False, header=True)
+            logging.info(f"Результаты успешно сохранены в файл: {output_filename}")
+            processing_successful = True
+        except Exception as e:
+            logging.error(f"Ошибка при записи итогового DataFrame в Excel: {e}")
+            processing_successful = False
 
-    logging.info(f"Сохранение {len(all_extracted_data)} извлеченных записей в Excel...")
-    output_dir = os.path.dirname(output_filename)
-    os.makedirs(output_dir, exist_ok=True)
+    # 7. Запуск теста качества (если обработка прошла успешно и флаг установлен)
+    if processing_successful and run_quality_test:
+        logging.info("Запуск теста качества...")
+        # Определяем пути для теста
+        # Используем config для путей, если они там определены, иначе строим относительно корня
+        project_root = config.BASE_DIR # Предполагаем, что BASE_DIR определен в config
+        benchmark_file_path = getattr(config, 'BENCHMARK_FILE_PATH', 
+                                      os.path.join(project_root, "data", "reports", "benchmark-report.xlsx"))
+        quality_test_output_dir = getattr(config, 'QUALITY_TEST_DIR', 
+                                            os.path.join(project_root, "llm_quality_tests"))
+        
+        # Убедимся, что директория для тестов существует
+        os.makedirs(quality_test_output_dir, exist_ok=True)
 
-    try:
-        df_final = pd.DataFrame(all_extracted_data)
-        with pd.ExcelWriter(output_filename, engine='openpyxl') as writer:
-            df_final.to_excel(writer, sheet_name='Results', index=False, header=True)
-        logging.info(f"Результаты успешно сохранены в файл: {output_filename}")
-        return True
-    except Exception as e:
-        logging.error(f"Ошибка при записи итогового DataFrame в Excel: {e}")
-        return False 
+        # Вызываем функцию сохранения результатов теста
+        save_quality_test_results(
+            benchmark_file_path=benchmark_file_path,
+            processing_file_path=output_filename, # Файл, который только что создали
+            output_dir_base=quality_test_output_dir,
+            prompt_text=base_prompt_template, # Передаем шаблон промпта, а не форматированный
+            llm_settings=llm_settings # Передаем собранные настройки
+        )
+    elif not processing_successful:
+         logging.warning("Пропускаем тест качества, так как не было данных для сохранения в Excel.")
+    elif not run_quality_test:
+         logging.info("Пропускаем тест качества, так как флаг run_quality_test=False.")
+
+    return processing_successful # Возвращаем True, если Excel файл был успешно создан 
