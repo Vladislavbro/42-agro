@@ -167,21 +167,43 @@ async def process_batch_async(messages: list[str], output_filename: str, run_qua
     processing_successful = False
     if not all_extracted_data:
         logging.warning("Нет данных для сохранения в Excel после асинхронной обработки.")
-        # Если файл уже существует от предыдущего запуска, его стоит удалить или обработать иначе
-        # Здесь просто считаем, что обработка прошла, но не успешно с точки зрения наличия данных
         processing_successful = False
     else:
-        logging.info(f"Сохранение {len(all_extracted_data)} извлеченных записей в Excel...")
-        output_dir = os.path.dirname(output_filename)
-        os.makedirs(output_dir, exist_ok=True)
+        record_count = len(all_extracted_data)
+        logging.info(f"Подготовка {record_count} извлеченных записей для сохранения в Excel с пустыми строками...")
         try:
-            df_final = pd.DataFrame(all_extracted_data)
+            # 1. Создаем исходный DataFrame
+            df_initial = pd.DataFrame(all_extracted_data)
+
+            if not df_initial.empty:
+                # 2. Создаем пустой DataFrame (одна строка с NaN)
+                empty_df = pd.DataFrame([[None] * len(df_initial.columns)], columns=df_initial.columns)
+
+                # 3. Создаем список DataFrame'ов: [строка1, пустая, строка2, пустая, ... , строкаN]
+                dfs_list = []
+                for i in range(len(df_initial)):
+                    dfs_list.append(df_initial.iloc[[i]]) # Берем i-ую строку как DataFrame
+                    if i < len(df_initial) - 1: # Добавляем пустой DataFrame после каждой строки, кроме последней
+                        dfs_list.append(empty_df)
+
+                # 4. Объединяем список DataFrame'ов
+                df_final = pd.concat(dfs_list, ignore_index=True)
+            else:
+                 df_final = df_initial # Если исходный DataFrame пуст, оставляем его пустым
+
+            # Сохраняем результат
+            logging.info(f"Сохранение DataFrame (включая пустые строки) в Excel...")
+            output_dir = os.path.dirname(output_filename)
+            os.makedirs(output_dir, exist_ok=True)
+
             with pd.ExcelWriter(output_filename, engine='openpyxl') as writer:
                 df_final.to_excel(writer, sheet_name='Results', index=False, header=True)
+
             logging.info(f"Результаты успешно сохранены в файл: {output_filename}")
             processing_successful = True
+
         except Exception as e:
-            logging.error(f"Ошибка при записи итогового DataFrame в Excel: {e}")
+            logging.error(f"Ошибка при обработке данных и записи в Excel: {e}")
             processing_successful = False
 
     # 7. Запуск теста качества (если обработка прошла успешно и флаг установлен)
