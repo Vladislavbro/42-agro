@@ -43,6 +43,9 @@ CULTURES_FILE_PATH = os.path.join(DATA_DIR, "cultures.txt")
 OPERATIONS_FILE_PATH = os.path.join(DATA_DIR, "operations.txt")
 DEPARTMENTS_FILE_PATH = os.path.join(DATA_DIR, "departments.json")
 
+# --- Report Output Path ---
+REPORT_OUTPUT_PATH = os.getenv("REPORT_OUTPUT_PATH", os.path.join(BASE_DIR, "data", "reports", "processing_results.xlsx"))
+
 # --- Quality Test Output ---
 QUALITY_TEST_DIR = os.path.join(BASE_DIR, "data", "llm_quality_test") # Папка для результатов тестов
 
@@ -62,11 +65,6 @@ elif PRIMARY_LLM_PROVIDER == "openai": # Добавляем проверку д�
     for var in REQUIRED_ENV_VARS["openai"]:
         if not globals().get(var):
             missing_vars.append(var)
-'''
-for var in REQUIRED_ENV_VARS["google"]:
-     if not globals().get(var):
-         missing_vars.append(var)
-'''
 
 if missing_vars:
     raise EnvironmentError(
