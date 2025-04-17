@@ -149,16 +149,24 @@ async def process_batch_async(messages: list[str], output_filename: str, run_qua
     all_extracted_data = []
     successful_count = 0
     failed_count = 0
+    successful_results_per_message = [] # Список для хранения успешных результатов по сообщениям
+
     for i, result in enumerate(results):
         if isinstance(result, Exception):
             logging.error(f"Ошибка при обработке сообщения {i+1}: {result}")
             failed_count += 1
-        elif result is None:
-            logging.warning(f"Сообщение {i+1} обработано, но данные не извлечены (вернулся None).")
+            successful_results_per_message.append(None) # Добавляем placeholder для неудач
+        elif result is None or not result: # Также проверяем на пустой список
+            if result is None:
+                 logging.warning(f"Сообщение {i+1} обработано, но данные не извлечены (вернулся None).")
+            else: # result == []
+                 logging.info(f"Сообщение {i+1} обработано, но LLM не вернул структурированных данных.")
             failed_count += 1 # Считаем как неудачу, если данные не извлечены
+            successful_results_per_message.append(None) # Добавляем placeholder
         else:
             # Результат - это список словарей (JSON объектов)
-            all_extracted_data.extend(result)
+            all_extracted_data.extend(result) # Собираем все для определения колонок
+            successful_results_per_message.append(result) # Сохраняем результат для этого сообщения
             successful_count += 1
 
     logging.info(f"Обработка завершена. Успешно: {successful_count}, Неудачно/Нет данных: {failed_count}")
@@ -170,29 +178,39 @@ async def process_batch_async(messages: list[str], output_filename: str, run_qua
         processing_successful = False
     else:
         record_count = len(all_extracted_data)
-        logging.info(f"Подготовка {record_count} извлеченных записей для сохранения в Excel с пустыми строками...")
+        logging.info(f"Подготовка {record_count} извлеченных записей (сгруппированных по сообщениям) для сохранения в Excel...")
         try:
-            # 1. Создаем исходный DataFrame
-            df_initial = pd.DataFrame(all_extracted_data)
+            # 1. Определяем полный набор колонок на основе всех данных
+            df_temp = pd.DataFrame(all_extracted_data)
+            all_columns = df_temp.columns
+            del df_temp # Освобождаем память
 
-            if not df_initial.empty:
-                # 2. Создаем пустой DataFrame (одна строка с NaN)
-                empty_df = pd.DataFrame([[None] * len(df_initial.columns)], columns=df_initial.columns)
+            # 2. Создаем пустой DataFrame (одна строка с NaN) с нужными колонками
+            empty_df = pd.DataFrame([[None] * len(all_columns)], columns=all_columns)
 
-                # 3. Создаем список DataFrame'ов: [строка1, пустая, строка2, пустая, ... , строкаN]
-                dfs_list = []
-                for i in range(len(df_initial)):
-                    dfs_list.append(df_initial.iloc[[i]]) # Берем i-ую строку как DataFrame
-                    if i < len(df_initial) - 1: # Добавляем пустой DataFrame после каждой строки, кроме последней
-                        dfs_list.append(empty_df)
+            # 3. Создаем список DataFrame'ов для объединения
+            dfs_to_concat = []
+            for message_result in successful_results_per_message:
+                if message_result: # Если для этого сообщения были успешные результаты
+                    df_message = pd.DataFrame(message_result)
+                    # Переиндексируем, чтобы гарантировать наличие всех колонок и их порядок
+                    df_message = df_message.reindex(columns=all_columns)
+                    dfs_to_concat.append(df_message)
+                    dfs_to_concat.append(empty_df) # Добавляем пустую строку ПОСЛЕ данных сообщения
 
-                # 4. Объединяем список DataFrame'ов
-                df_final = pd.concat(dfs_list, ignore_index=True)
+            # 4. Удаляем последнюю пустую строку, если она есть
+            if dfs_to_concat:
+                dfs_to_concat.pop()
+
+            # 5. Объединяем DataFrame'ы, если есть что объединять
+            if dfs_to_concat:
+                df_final = pd.concat(dfs_to_concat, ignore_index=True)
             else:
-                 df_final = df_initial # Если исходный DataFrame пуст, оставляем его пустым
+                # Если после фильтрации не осталось данных (маловероятно, если all_extracted_data не пусто, но для надежности)
+                df_final = pd.DataFrame(columns=all_columns) # Создаем пустой DataFrame с колонками
 
             # Сохраняем результат
-            logging.info(f"Сохранение DataFrame (включая пустые строки) в Excel...")
+            logging.info(f"Сохранение итогового DataFrame в Excel...")
             output_dir = os.path.dirname(output_filename)
             os.makedirs(output_dir, exist_ok=True)
 
