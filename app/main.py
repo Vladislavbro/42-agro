@@ -2,13 +2,28 @@ import logging
 import json # Добавим импорт json для красивого вывода
 import pandas as pd # Добавим импорт pandas
 import os
-
-# Импортируем наши модули
-# Удалены импорты TextGenerationClient, load_mapping_file, build_detailed_extraction_prompt, extract_json_list, config
-# Удален импорт datetime
 from app.utils.google_drive_uploader import upload_to_drive
 from data.test_messages import TEST_MESSAGES # Импортируем тестовые сообщения из корневой папки data
 from app.message_processing.processor import process_single_message # Импортируем функцию обработки
+from fastapi import FastAPI
+from app.core.settings import get_settings
+from app.api import health, messages, reports  # подключаем всё
+
+settings = get_settings()
+
+app = FastAPI(
+    title="42‑Agro API",
+    description="MVP backend для агро‑отчётов",
+    version="0.1.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+)
+
+app.include_router(health.router)
+app.include_router(messages.router)
+app.include_router(reports.router)
+
 
 # Настройка базового логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
