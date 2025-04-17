@@ -12,17 +12,18 @@ else:
     load_dotenv(override=True) 
 
 # --- LLM Configuration ---
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-# Можно добавить DEEPSEEK_API_BASE, если планируете использовать
 DEEPSEEK_API_BASE = os.getenv("DEEPSEEK_API_BASE") # Добавляем загрузку base_url для DeepSeek
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") # Добавляем загрузку ключа OpenAI
 PRIMARY_LLM_PROVIDER = os.getenv("PRIMARY_LLM_PROVIDER", "deepseek").lower() # По умолчанию deepseek
 
 # --- Model Names --- (Загружаем из .env с дефолтами)
 DEEPSEEK_MODEL_NAME = os.getenv("DEEPSEEK_MODEL_NAME", "deepseek-chat")
-GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.0-flash") # Используем указанную модель
 OPENAI_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "gpt-4.1-mini") # Используем указанную модель
+LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2")) # Добавлена температура
+
+# Настройки асинхронной обработки
+MAX_CONCURRENT_REQUESTS = 1 # Максимальное количество одновременных запросов к LLM
 
 # --- Google Sheets Configuration ---
 GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
@@ -42,13 +43,17 @@ CULTURES_FILE_PATH = os.path.join(DATA_DIR, "cultures.txt")
 OPERATIONS_FILE_PATH = os.path.join(DATA_DIR, "operations.txt")
 DEPARTMENTS_FILE_PATH = os.path.join(DATA_DIR, "departments.json")
 
+# --- Report Output Path ---
+REPORT_OUTPUT_PATH = os.getenv("REPORT_OUTPUT_PATH", os.path.join(BASE_DIR, "data", "reports", "processing_results.xlsx"))
+
+# --- Quality Test Output ---
+QUALITY_TEST_DIR = os.path.join(BASE_DIR, "data", "llm_quality_test") # Папка для результатов тестов
+
 # --- Validation (Optional but recommended) ---
 # Проверка наличия обязательных переменных
 REQUIRED_ENV_VARS = {
     "deepseek": ["DEEPSEEK_API_KEY", "DEEPSEEK_API_BASE"], # Добавляем DEEPSEEK_API_BASE как обязательный для deepseek
-    "gemini": ["GEMINI_API_KEY"],
     "openai": ["OPENAI_API_KEY"], # Добавляем проверку для openai
-    # "google": ["GOOGLE_SHEET_ID", "GOOGLE_APPLICATION_CREDENTIALS"]
 }
 
 missing_vars = []
@@ -56,19 +61,10 @@ if PRIMARY_LLM_PROVIDER == "deepseek":
     for var in REQUIRED_ENV_VARS["deepseek"]:
         if not globals().get(var):
             missing_vars.append(var)
-elif PRIMARY_LLM_PROVIDER == "gemini":
-     for var in REQUIRED_ENV_VARS["gemini"]:
-        if not globals().get(var):
-            missing_vars.append(var)
 elif PRIMARY_LLM_PROVIDER == "openai": # Добавляем проверку для openai
     for var in REQUIRED_ENV_VARS["openai"]:
         if not globals().get(var):
             missing_vars.append(var)
-'''
-for var in REQUIRED_ENV_VARS["google"]:
-     if not globals().get(var):
-         missing_vars.append(var)
-'''
 
 if missing_vars:
     raise EnvironmentError(
@@ -76,10 +72,6 @@ if missing_vars:
         f"Проверьте ваш .env файл."
     )
 
-if GOOGLE_APPLICATION_CREDENTIALS and not os.path.exists(GOOGLE_APPLICATION_CREDENTIALS):
-     print(
-         f"Внимание: Файл учетных данных Google '{GOOGLE_APPLICATION_CREDENTIALS}' не найден. "
-         f"Убедитесь, что путь в .env указан верно."
-     )
-     # Можно либо выбросить исключение, либо просто предупредить
-     # raise FileNotFoundError(f"Файл учетных данных Google не найден: {GOOGLE_APPLICATION_CREDENTIALS}")
+
+
+
