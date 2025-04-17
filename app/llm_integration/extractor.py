@@ -68,30 +68,4 @@ def extract_json_list(llm_response: str) -> Optional[List[Dict[str, Any]]]:
         # Решаем, возвращать как есть или считать ошибкой. Пока возвращаем.
 
     logger.info(f"Успешно извлечен JSON-список с {len(parsed_data)} элементами.")
-    return parsed_data
-
-def extract_json_object(llm_response: str) -> Optional[Dict[str, Any]]:
-    """
-    Извлекает JSON-объект (словарь) из текстового ответа LLM.
-
-    Очищает ответ от маркеров ```json ... ``` и парсит его.
-    Проверяет, что результат является словарем.
-
-    Args:
-        llm_response: Текстовый ответ от LLM.
-
-    Returns:
-        Словарь или None в случае ошибки или если результат не словарь.
-    """
-    parsed_data = _clean_and_parse_json(llm_response)
-    
-    if parsed_data is None:
-        return None
-
-    if not isinstance(parsed_data, dict):
-        logger.error(f"Ошибка: Ожидался JSON-объект (словарь), но получен {type(parsed_data)}.")
-        logger.debug(f"Данные: {parsed_data}")
-        return None
-        
-    logger.info("Успешно извлечен JSON-объект.")
     return parsed_data 
