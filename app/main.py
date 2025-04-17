@@ -7,6 +7,25 @@ from app.config import REPORT_OUTPUT_PATH # Импортируем путь к �
 from app.utils.google_drive_uploader import upload_to_drive
 from data.test_messages import TEST_MESSAGES # Импортируем тестовые сообщения из корневой папки data
 from app.message_processing.processor import process_batch_async # Новая асинхронная функция
+from fastapi import FastAPI
+from app.core.settings import get_settings
+from app.api import health, messages, reports  # подключаем всё
+
+settings = get_settings()
+
+app = FastAPI(
+    title="42‑Agro API",
+    description="MVP backend для агро‑отчётов",
+    version="0.1.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+)
+
+app.include_router(health.router)
+app.include_router(messages.router)
+app.include_router(reports.router)
+
 
 # Настройка базового логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
