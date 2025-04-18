@@ -65,3 +65,6 @@ index.js
 /app/parser/messages.db
 
 drive_credentials.json
+
+# Credentials / Secrets
+app/utils/drive_credentials.json
