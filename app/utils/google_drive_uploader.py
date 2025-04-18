@@ -50,38 +50,50 @@ def upload_to_drive(file_path: str, filename: str = None, google_drive_folder_ur
         # Авторизация через OAuth
         gauth = GoogleAuth()
         # Загружаем секреты клиента
-        gauth.LoadClientConfigFile(CLIENT_SECRETS_FILE)
+        try: # Добавим try/except и сюда на всякий случай
+            gauth.LoadClientConfigFile(CLIENT_SECRETS_FILE)
+        except Exception as e:
+            logging.error(f"Ошибка при загрузке секретов клиента из {CLIENT_SECRETS_FILE}: {e}", exc_info=True)
+            return # Прерываем выполнение, если секреты не загружены
 
         # Пробуем загрузить сохраненные учетные данные из app/utils/drive_credentials.json
         try:
             gauth.LoadCredentialsFile(CREDENTIALS_FILE)
+            # Проверим, что credentials действительно загрузились
             if gauth.credentials is None:
                 # Учетные данные не загрузились из файла: запускаем аутентификацию
-                logging.info(f"Не удалось загрузить учетные данные из {CREDENTIALS_FILE}, запускаю веб-аутентификацию...")
-                gauth.LocalWebserverAuth()
+                logging.info(f"Учетные данные не загружены из {CREDENTIALS_FILE}, запускаю веб-аутентификацию...")
+                gauth.LocalWebserverAuth() # Этот метод сам вызовет Authorize() в случае успеха
             elif gauth.access_token_expired:
                 # Учетные данные есть, но токен истек: обновляем
                 logging.info("Токен доступа истек, обновляю...")
                 gauth.Refresh()
+                gauth.Authorize() # После Refresh нужно снова Authorize
             else:
                 # Учетные данные валидны: авторизуемся
                 gauth.Authorize()
-                logging.info(f"Используются сохраненные учетные данные из {CREDENTIALS_FILE}.")
+
         except FileNotFoundError:
              # Файла нет: запускаем аутентификацию
              logging.info(f"Файл учетных данных {CREDENTIALS_FILE} не найден, запускаю веб-аутентификацию...")
-             gauth.LocalWebserverAuth()
+             gauth.LocalWebserverAuth() # Этот метод сам вызовет Authorize() в случае успеха
         except Exception as e:
             logging.error(f"Ошибка при загрузке/проверке учетных данных: {e}", exc_info=True)
             # Если с учетными данными проблема, прерываем выполнение, чтобы не падать дальше
             return
 
+        # Убедимся, что авторизация прошла успешно перед сохранением
+        if not gauth.credentials:
+             logging.error("Не удалось получить действительные учетные данные после всех попыток аутентификации/обновления.")
+             return
+
         # Сохраняем учетные данные (если были обновлены или получены впервые) в app/utils/drive_credentials.json
         try:
             gauth.SaveCredentialsFile(CREDENTIALS_FILE)
-            logging.info(f"Учетные данные сохранены/обновлены в {CREDENTIALS_FILE}")
+            logging.info(f"Учетные данные успешно сохранены/обновлены в {CREDENTIALS_FILE}")
         except Exception as e:
             logging.error(f"Не удалось сохранить учетные данные в {CREDENTIALS_FILE}: {e}", exc_info=True)
+            # Не прерываем выполнение здесь, так как основная функция (загрузка) может еще сработать
 
         drive = GoogleDrive(gauth)
 
