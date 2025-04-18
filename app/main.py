@@ -6,26 +6,7 @@ import asyncio # Добавлено
 from app.config import REPORT_OUTPUT_PATH # Импортируем путь к отчету
 from app.utils.google_drive_uploader import upload_to_drive
 from data.test_messages import TEST_MESSAGES # Импортируем тестовые сообщения из корневой папки data
-from app.message_processing.processor import process_batch_async # Новая асинхронная функция
-from fastapi import FastAPI
-from app.core.settings import get_settings
-from app.api import health, messages, reports  # подключаем всё
-
-settings = get_settings()
-
-app = FastAPI(
-    title="42‑Agro API",
-    description="MVP backend для агро‑отчётов",
-    version="0.1.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
-)
-
-app.include_router(health.router)
-app.include_router(messages.router)
-app.include_router(reports.router)
-
+from app.llm_integration.processor import process_batch_async # Новая асинхронная функция
 
 # Настройка базового логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -34,22 +15,21 @@ async def main(): # Оборачиваем в async def
 
     # Вызываем АСИНХРОННУЮ функцию пакетной обработки
     logging.info("Запуск асинхронной обработки...")
-    # Вызываем без output_filename, результат - список JSON или None
-    extracted_data = await process_batch_async(TEST_MESSAGES)
+    success = await process_batch_async(TEST_MESSAGES, REPORT_OUTPUT_PATH) # Используем переменную из конфига
 
-    # Проверяем, вернула ли функция список (успех) или None (ошибка/нет данных)
-    if extracted_data is not None:
-        logging.info(f"Асинхронная пакетная обработка сообщений завершена успешно. Извлечено {len(extracted_data)} записей.")
-        return extracted_data
+    if success:
+        logging.info("Асинхронная пакетная обработка сообщений завершена успешно.")
+        # Загрузка на Google Drive происходит здесь, если обработка прошла успешно
+        # if os.path.exists(REPORT_OUTPUT_PATH) and os.path.getsize(REPORT_OUTPUT_PATH) > 0: # Используем переменную из конфига
+        #     logging.info(f"Запуск загрузки файла {REPORT_OUTPUT_PATH} на Google Drive...") # Используем переменную из конфига
+        #     # upload_to_drive(REPORT_OUTPUT_PATH) # Раскомментировать для включения загрузки
+        #     logging.info("Загрузка (симуляция) завершена.") # Заглушка
+        # else:
+        #     logging.warning("Файл отчета пуст или не создан после асинхронной обработки, загрузка на Google Drive отменена.")
     else:
-        logging.error("Асинхронная пакетная обработка сообщений завершилась с ошибкой или не извлекла данных.")
+        logging.error("Асинхронная пакетная обработка сообщений завершилась с ошибкой.")
 
 if __name__ == "__main__":
-    # Запускаем асинхронную функцию main и сохраняем результат
-    result_data = asyncio.run(main())
-    # Печатаем результат, если он не None
-    if result_data is not None:
-        print("\n--- Результат выполнения main() ---")
-        # Используем json.dumps для красивого вывода
-        print(json.dumps(result_data, indent=2, ensure_ascii=False))
+    # Запускаем асинхронную функцию main
+    asyncio.run(main())
 
