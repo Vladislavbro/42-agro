@@ -71,10 +71,9 @@ async def process_single_message_async(
         return None # Возвращаем None при ошибке
 
 
-async def process_batch_async(messages: list[str], output_filename: str, run_quality_test: bool = True) -> bool:
+async def process_batch_async(messages: list[str], run_quality_test: bool = True) -> list | None:
     """
-    Асинхронно обрабатывает список сообщений, сохраняет результаты в Excel файл
-    и опционально запускает тест качества.
+    Асинхронно обрабатывает список сообщений и возвращает список извлеченных JSON-объектов.
     """
     total_messages = len(messages)
     logging.info(f"Начало АСИНХРОННОЙ пакетной обработки {total_messages} сообщений...")
@@ -96,7 +95,7 @@ async def process_batch_async(messages: list[str], output_filename: str, run_qua
         }
     except Exception as e:
         logging.error(f"Критическая ошибка: Не удалось инициализировать клиента LLM: {e}")
-        return False
+        return None
 
     # 2. Загрузка справочников и базового промпта (один раз)
     logging.info("Загрузка справочников и базового промпта...")
@@ -110,10 +109,10 @@ async def process_batch_async(messages: list[str], output_filename: str, run_qua
         logging.info("Справочники и базовый промпт успешно загружены.")
     except FileNotFoundError as e:
         logging.error(f"Критическая ошибка: Файл справочника не найден - {e}")
-        return False
+        return None
     except Exception as e:
         logging.error(f"Критическая ошибка при загрузке справочников или промпта: {e}")
-        return False
+        return None
 
     current_date = datetime.date.today().strftime('%Y-%m-%d')
     logging.info(f"Текущая дата: {current_date}")
@@ -171,8 +170,6 @@ async def process_batch_async(messages: list[str], output_filename: str, run_qua
 
     logging.info(f"Обработка завершена. Успешно: {successful_count}, Неудачно/Нет данных: {failed_count}")
 
-    # 6. Сохранение результатов в Excel
-    processing_successful = False
     if not all_extracted_data:
         logging.warning("Нет данных для сохранения в Excel после асинхронной обработки.")
         processing_successful = False

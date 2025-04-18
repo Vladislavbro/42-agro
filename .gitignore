@@ -1,5 +1,5 @@
 # Common Python ignores
-__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 
@@ -15,10 +15,24 @@ __pycache__/
 *.swp
 
 # Notebook Checkpoints
+.ipynb_checkpoints/
 
 # Generated files
 *.xlsx
+*.log
+logs/
+data/reports/*.xlsx
 
+# SQLite DB
+/reports.db
+
+# Secrets
+**/client_secrets.json
+
+# Temporary & system
+.DS_Store
+
+# Markdown exports
 Openai-json.md
 
 .DS_Store
