@@ -41,7 +41,7 @@ data/reports/
 
 
 # Secrets
-app/client_secrets.json
+client_secrets.json
 
 data/llm_quality_test/
 
