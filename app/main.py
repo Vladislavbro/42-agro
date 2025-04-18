@@ -6,7 +6,7 @@ import sqlite3 # Добавляем для работы с БД
 import datetime # Для отметки времени обработки
 
 from app.config import REPORT_OUTPUT_PATH, BASE_DIR # Импортируем путь к отчету и базовую директорию
-# from app.utils.google_drive_uploader import upload_to_drive # Пока закомментировано
+from app.utils.google_drive_uploader import upload_to_drive # Раскомментировано
 # from data.test_messages import TEST_MESSAGES # Больше не используем тестовые сообщения
 from app.llm_integration.processor import process_batch_async # Новая асинхронная функция
 
@@ -83,15 +83,23 @@ async def main():
     if processed_data_list is not None:
         logging.info(f"Асинхронная пакетная обработка сообщений завершена. Получено {len(processed_data_list) if isinstance(processed_data_list, list) else 'N/A'} записей.")
         mark_messages_as_processed(message_ids)
-        # Логика загрузки на Google Drive (если нужно и данные есть)
-        # report_created = os.path.exists(output_file) and os.path.getsize(output_file) > 0
-        # if report_created:
-        #     logging.info(f"Файл отчета {output_file} создан/обновлен.")
-            # logging.info(f"Запуск загрузки файла {output_file} на Google Drive...")
-            # upload_to_drive(output_file) # Раскомментировать для включения загрузки
-            # logging.info("Загрузка (симуляция) завершена.") # Заглушка
-        # else:
-        #     logging.warning("Файл отчета пуст или не создан, загрузка на Google Drive отменена.")
+        
+        # Логика загрузки на Google Drive 
+        report_created = os.path.exists(output_file) and os.path.getsize(output_file) > 0
+        if report_created:
+            logging.info(f"Файл отчета {output_file} создан/обновлен.")
+            logging.info(f"Запуск загрузки файла {output_file} на Google Drive...")
+            try:
+                # Запускаем загрузку в отдельном потоке, чтобы не блокировать async loop
+                # (PyDrive2, похоже, не полностью async-совместима)
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, upload_to_drive, output_file)
+                # upload_to_drive(output_file) # Старый синхронный вызов
+                # logging.info("Загрузка файла инициирована.") # Можно добавить, если нужно
+            except Exception as e:
+                 logging.error(f"Ошибка при попытке запуска загрузки на Google Drive: {e}")
+        else:
+             logging.warning("Файл отчета пуст или не создан, загрузка на Google Drive отменена.")
     else:
         logging.error("Асинхронная пакетная обработка сообщений завершилась с ошибкой.")
 
