@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from tkcalendar import DateEntry
 # from app.gui.mock_api import mock_send_messages_request, mock_get_reports, mock_save_excel # Удаляем моки
+import re # Добавим импорт для регулярных выражений
 
 # --- Новые импорты ---
 import threading
@@ -31,14 +32,19 @@ def on_load_messages():
     global last_successful_report_path
     selected_date = date_picker.get_date()
     date_str = selected_date.strftime('%Y-%m-%d')
+    google_drive_url = drive_url_entry.get().strip() # Получаем URL и убираем пробелы
 
-    # Запускаем парсер, если он еще не запущен
-    start_parser()
-    # Проверяем, запустился ли парсер успешно
-    if parser_process is None or parser_process.poll() is not None:
-        # Если парсер не запустился, start_parser уже показал ошибку
-        logging.warning("Парсер не запущен, обработка не начнется.")
-        return 
+    # --- Проверка URL Google Drive ---
+    # Простая проверка на наличие drive.google.com/drive/folders/
+    if not google_drive_url or not re.match(r"https://drive\.google\.com/drive/folders/[a-zA-Z0-9_-]+/?$", google_drive_url):
+        messagebox.showerror("Ошибка URL", "Пожалуйста, введите корректную ссылку на папку Google Drive (вида https://drive.google.com/drive/folders/...).")
+        return
+    # --- Конец проверки ---
+
+    # Запускаем парсер, если он еще не запущен, передавая URL
+    if not start_parser(google_drive_url): # Передаем URL и проверяем результат запуска
+        logging.warning("Парсер не был запущен (возможно, из-за ошибки), обработка не начнется.")
+        return
 
     # Очищаем таблицу перед запуском
     for row in report_table.get_children():
@@ -50,7 +56,7 @@ def on_load_messages():
     root.title(f"Агро-отчёты - Запуск парсера и ожидание ({date_str})...")
 
     # Функция-обертка для запуска в потоке
-    def processing_worker(date_to_process, result_queue):
+    def processing_worker(date_to_process, drive_url, result_queue): # Добавляем drive_url
         try:
             # Ждем 60 секунд, давая парсеру время получить сообщения
             logging.info(f"Ожидание {60} секунд для сбора сообщений парсером...")
@@ -59,7 +65,8 @@ def on_load_messages():
             logging.info("Ожидание завершено. Запуск обработки LLM...")
             root.title(f"Агро-отчёты - Обработка LLM ({date_str})...") # Обновляем статус
 
-            result = asyncio.run(run_processing_for_date(date_to_process))
+            # Передаем URL в функцию бэкенда
+            result = asyncio.run(run_processing_for_date(date_to_process, google_drive_folder_url=drive_url))
             result_queue.put(result)
         except Exception as e:
             result_queue.put({
@@ -69,7 +76,8 @@ def on_load_messages():
                 'processed_count': 0
             })
 
-    thread = threading.Thread(target=processing_worker, args=(date_str, processing_queue))
+    # Передаем URL в поток
+    thread = threading.Thread(target=processing_worker, args=(date_str, google_drive_url, processing_queue))
     thread.start()
     check_processing_queue()
 
@@ -163,8 +171,12 @@ def on_save_excel():
     except Exception as e:
         messagebox.showerror("Ошибка сохранения", f"Не удалось скопировать файл отчета:\n{e}")
 
-def start_parser():
-    """Запускает парсер node.js, если он еще не запущен. Предварительно удаляет старую БД."""
+def start_parser(google_drive_url: str) -> bool:
+    """
+    Запускает парсер node.js, если он еще не запущен. Предварительно удаляет старую БД.
+    Передает URL папки Google Drive как аргумент командной строки.
+    Возвращает True, если парсер запущен успешно, иначе False.
+    """
     global parser_process
     if parser_process is None or parser_process.poll() is not None:
         logging.info("Запуск процесса парсера node.js...")
@@ -179,32 +191,38 @@ def start_parser():
                 except OSError as e:
                     logging.error(f"Не удалось удалить файл базы данных {db_path}: {e}")
                     messagebox.showerror("Ошибка БД", f"Не удалось удалить старую базу данных:\n{e}\nПарсер не будет запущен.")
-                    return # Не запускаем парсер, если не удалось удалить БД
+                    return False # Не запускаем парсер, если не удалось удалить БД
             else:
                 logging.info("Файл базы данных не найден, удаление не требуется.")
             # --- Конец удаления --- 
 
-            # Запускаем node index.js в директории app/parser
+            # Запускаем node index.js в директории app/parser, передавая URL как аргумент
+            parser_command = ['node', 'index.js', google_drive_url] # Добавляем URL
+            logging.info(f"Запуск команды: {' '.join(parser_command)} в {parser_cwd}")
             parser_process = subprocess.Popen(
-                ['node', 'index.js'], 
+                parser_command, # Используем команду с URL
                 cwd=parser_cwd, 
                 stdout=None,
                 stderr=None,
             )
-            logging.info(f"Процесс парсера запущен (PID: {parser_process.pid})")
+            logging.info(f"Процесс парсера запущен (PID: {parser_process.pid}) с URL: {google_drive_url}")
             time.sleep(5) 
             if parser_process.poll() is not None:
                 raise RuntimeError("Процесс парсера завершился сразу после запуска. Проверьте логи парсера.")
+            return True # Успешный запуск
         except FileNotFoundError:
             logging.error("Ошибка запуска парсера: команда 'node' не найдена. Убедитесь, что Node.js установлен и доступен в PATH.")
             messagebox.showerror("Ошибка Запуска", "Не найден Node.js. Парсер не может быть запущен.")
             parser_process = None # Сбрасываем процесс
+            return False # Ошибка
         except Exception as e:
             logging.error(f"Ошибка при запуске процесса парсера: {e}")
             messagebox.showerror("Ошибка Запуска", f"Не удалось запустить парсер:\n{e}")
             parser_process = None
+            return False # Ошибка
     else:
         logging.info("Процесс парсера уже запущен.")
+        return True # Уже запущен
 
 def stop_parser():
     """Останавливает процесс парсера, если он запущен."""
@@ -242,14 +260,30 @@ root.resizable(True, True)
 top_frame = ttk.Frame(root)
 top_frame.pack(pady=10)
 
-date_label = ttk.Label(top_frame, text="Выберите дату:")
+# --- Поля даты ---
+date_frame = ttk.Frame(top_frame)
+date_frame.pack(pady=5)
+date_label = ttk.Label(date_frame, text="Выберите дату:")
 date_label.pack(side="left", padx=5)
-
-date_picker = DateEntry(top_frame, width=15, background="darkblue", foreground="white", date_pattern="yyyy-mm-dd")
+date_picker = DateEntry(date_frame, width=15, background="darkblue", foreground="white", date_pattern="yyyy-mm-dd")
 date_picker.pack(side="left")
+# --- Конец полей даты ---
 
-load_button = ttk.Button(top_frame, text="Создать отчет", command=on_load_messages)
+# --- Поле для URL Google Drive ---
+drive_url_frame = ttk.Frame(top_frame)
+drive_url_frame.pack(pady=5, fill='x', padx=10) # Растягиваем по X
+drive_url_label = ttk.Label(drive_url_frame, text="URL папки Google Drive:")
+drive_url_label.pack(side="left", padx=5)
+drive_url_entry = ttk.Entry(drive_url_frame, width=60) # Делаем поле шире
+drive_url_entry.pack(side="left", fill='x', expand=True) # Растягиваем поле
+# --- Конец поля для URL ---
+
+# --- Кнопка Загрузки ---
+load_button_frame = ttk.Frame(top_frame)
+load_button_frame.pack(pady=5)
+load_button = ttk.Button(load_button_frame, text="Создать отчет", command=on_load_messages)
 load_button.pack(side="left", padx=10)
+# --- Конец Кнопки Загрузки ---
 
 # Таблица
 columns = [

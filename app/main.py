@@ -71,12 +71,13 @@ def mark_messages_as_processed(message_ids: list[str]):
         if conn:
             conn.close()
 
-async def run_processing_for_date(date_str: str) -> dict:
+async def run_processing_for_date(date_str: str, google_drive_folder_url: str) -> dict:
     """
     Запускает обработку сообщений за указанную дату.
 
     Args:
         date_str: Дата в формате 'YYYY-MM-DD'.
+        google_drive_folder_url: URL папки Google Drive для загрузки отчета.
 
     Returns:
         Словарь с результатом:
@@ -133,11 +134,11 @@ async def run_processing_for_date(date_str: str) -> dict:
             # Загрузка на Google Drive
             # Имя файла на диске будет таким же, как локальное (Отчет_ДАТА.xlsx)
             drive_filename = os.path.basename(output_filename) 
-            logging.info(f"Запуск загрузки файла {output_filename} на Google Drive как '{drive_filename}'...")
+            logging.info(f"Запуск загрузки файла {output_filename} на Google Drive как '{drive_filename}' в папку {google_drive_folder_url}...")
             try:
                 loop = asyncio.get_running_loop()
-                # Передаем локальный путь и имя файла для диска
-                await loop.run_in_executor(None, upload_to_drive, output_filename, drive_filename)
+                # Передаем локальный путь, имя файла для диска и URL папки
+                await loop.run_in_executor(None, upload_to_drive, output_filename, drive_filename, google_drive_folder_url)
                 logging.info(f"Загрузка файла на Google Drive инициирована.")
             except Exception as e:
                  logging.error(f"Ошибка при попытке запуска загрузки на Google Drive: {e}")

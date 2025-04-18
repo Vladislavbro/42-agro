@@ -7,7 +7,7 @@ const readline = require('readline');
 
 const CREDENTIALS_PATH = 'credentials.json';
 const TOKEN_PATH = 'token.json';
-const PARENT_FOLDER_ID = '15Ka4ST-JqIhptlWHwWvknh2bGTBunYDg'; // ID новой папки
+// const PARENT_FOLDER_ID = '15Ka4ST-JqIhptlWHwWvknh2bGTBunYDg'; // Удаляем жестко заданный ID
 
 function askQuestion(query) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -34,17 +34,32 @@ async function authorizeGoogle() {
   return oAuth2Client;
 }
 
+function extractFolderIdFromUrl(url) {
+    // Ищем ID папки после /folders/
+    const match = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+    if (match && match[1]) {
+        return match[1];
+    }
+    // Если не нашли, возможно URL старого формата или невалидный
+    console.warn(`Не удалось извлечь ID папки из URL: ${url}. Попытка использовать базовый URL.`);
+    // Можно добавить фолбэк или выбросить ошибку
+    return null; 
+}
 
-
-async function uploadToDrive(filename, buffer) {
+async function uploadToDrive(filename, buffer, googleDriveFolderUrl) { // Добавляем URL как аргумент
   const auth = await authorizeGoogle();
   const drive = google.drive({ version: 'v3', auth });
 
-  const folderId = PARENT_FOLDER_ID;
+  // Извлекаем ID папки из URL
+  const folderId = extractFolderIdFromUrl(googleDriveFolderUrl);
+
+  if (!folderId) {
+      throw new Error(`Не удалось определить ID папки Google Drive из URL: ${googleDriveFolderUrl}`);
+  }
 
   const fileMetadata = {
     name: filename,
-    parents: [folderId]
+    parents: [folderId] // Используем извлеченный ID
   };
 
   const media = {
