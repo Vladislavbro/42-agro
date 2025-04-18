@@ -102,18 +102,21 @@ async def run_processing_for_date(date_str: str) -> dict:
     message_ids = [msg[0] for msg in unprocessed_messages]
     result_status['processed_count'] = len(message_ids)
 
-    # Определяем путь к выходному файлу для этой даты
+    # --- Определяем путь к выходному файлу для этой даты ---
+    # Базовая папка для отчетов берется из config (папка data/reports)
     report_dir = os.path.dirname(REPORT_OUTPUT_PATH)
-    report_basename = os.path.basename(REPORT_OUTPUT_PATH)
-    report_name, report_ext = os.path.splitext(report_basename)
-    output_file = os.path.join(report_dir, f"{report_name}_{date_str}{report_ext}")
-    result_status['report_path'] = output_file # Сохраняем путь для возврата
+    # Расширение файла берем из config (по умолчанию .xlsx)
+    report_ext = os.path.splitext(os.path.basename(REPORT_OUTPUT_PATH))[1]
+    # Новое имя файла
+    output_filename = os.path.join(report_dir, f"Отчет_{date_str}{report_ext}")
+    result_status['report_path'] = output_filename # Сохраняем путь для возврата
+    # --- Конец определения пути --- 
     
-    logging.info(f"Запуск LLM обработки {len(message_texts)} сообщений. Результат будет сохранен в {output_file}")
+    logging.info(f"Запуск LLM обработки {len(message_texts)} сообщений. Результат будет сохранен в {output_filename}")
 
     processed_data_list = await process_batch_async(
         messages=message_texts,
-        output_filename=output_file,
+        output_filename=output_filename, # Передаем новое имя файла
         run_quality_test=False
     )
 
@@ -121,18 +124,21 @@ async def run_processing_for_date(date_str: str) -> dict:
         logging.info(f"LLM обработка сообщений завершена. Получено {len(processed_data_list) if isinstance(processed_data_list, list) else 'N/A'} записей.")
         mark_messages_as_processed(message_ids)
         
-        report_created = os.path.exists(output_file) and os.path.getsize(output_file) > 0
+        report_created = os.path.exists(output_filename) and os.path.getsize(output_filename) > 0
         if report_created:
-            logging.info(f"Файл отчета {output_file} создан/обновлен.")
+            logging.info(f"Файл отчета {output_filename} создан/обновлен.")
             result_status['success'] = True
-            result_status['message'] = f"Обработка за {date_str} завершена. Отчет сохранен: {output_file}"
+            result_status['message'] = f"Обработка за {date_str} завершена. Отчет сохранен: {output_filename}"
             
             # Загрузка на Google Drive
-            logging.info(f"Запуск загрузки файла {output_file} на Google Drive...")
+            # Имя файла на диске будет таким же, как локальное (Отчет_ДАТА.xlsx)
+            drive_filename = os.path.basename(output_filename) 
+            logging.info(f"Запуск загрузки файла {output_filename} на Google Drive как '{drive_filename}'...")
             try:
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, upload_to_drive, output_file)
-                logging.info(f"Загрузка файла {output_file} на Google Drive инициирована.")
+                # Передаем локальный путь и имя файла для диска
+                await loop.run_in_executor(None, upload_to_drive, output_filename, drive_filename)
+                logging.info(f"Загрузка файла на Google Drive инициирована.")
             except Exception as e:
                  logging.error(f"Ошибка при попытке запуска загрузки на Google Drive: {e}")
                  # Не меняем статус успеха, т.к. основная обработка прошла
