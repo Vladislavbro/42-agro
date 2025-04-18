@@ -100,7 +100,8 @@ def check_processing_queue():
 
         # Показываем сообщение о результате
         if result['success']:
-            messagebox.showinfo("Завершено", result['message'])
+            # messagebox.showinfo("Завершено", result['message']) # Используем статичное сообщение
+            messagebox.showinfo("Завершено", "Отчет сохранен локально и на гугл диск")
         else:
             messagebox.showerror("Ошибка обработки", result['message'])
             return # Не пытаемся читать отчет при ошибке
@@ -305,6 +306,7 @@ load_button_frame = ttk.Frame(top_frame)
 load_button_frame.pack(pady=10) # Центрируем кнопку 'Создать отчет'
 load_button = ttk.Button(load_button_frame, text="Создать отчет", command=on_load_messages)
 load_button.pack(side="left", padx=10)
+load_button.config(default=tk.ACTIVE) # Попробуем сделать ее кнопкой по умолчанию
 # --- Конец Кнопки Загрузки ---
 
 # Таблица
