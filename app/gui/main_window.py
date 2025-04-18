@@ -33,6 +33,7 @@ def on_load_messages():
     selected_date = date_picker.get_date()
     date_str = selected_date.strftime('%Y-%m-%d')
     google_drive_url = drive_url_entry.get().strip() # Получаем URL и убираем пробелы
+    whatsapp_target_name = whatsapp_entry.get().strip() # Получаем название WhatsApp чата/группы
 
     # --- Проверка URL Google Drive ---
     # Простая проверка на наличие drive.google.com/drive/folders/
@@ -41,8 +42,14 @@ def on_load_messages():
         return
     # --- Конец проверки ---
 
-    # Запускаем парсер, если он еще не запущен, передавая URL
-    if not start_parser(google_drive_url): # Передаем URL и проверяем результат запуска
+    # --- Проверка названия WhatsApp чата/группы ---
+    if not whatsapp_target_name:
+        messagebox.showerror("Ошибка ввода", "Пожалуйста, введите название WhatsApp чата или группы для обработки.")
+        return
+    # --- Конец проверки ---
+
+    # Запускаем парсер, если он еще не запущен, передавая URL и название чата
+    if not start_parser(google_drive_url, whatsapp_target_name): # Передаем URL и название, проверяем результат
         logging.warning("Парсер не был запущен (возможно, из-за ошибки), обработка не начнется.")
         return
 
@@ -171,10 +178,10 @@ def on_save_excel():
     except Exception as e:
         messagebox.showerror("Ошибка сохранения", f"Не удалось скопировать файл отчета:\n{e}")
 
-def start_parser(google_drive_url: str) -> bool:
+def start_parser(google_drive_url: str, whatsapp_target: str) -> bool:
     """
     Запускает парсер node.js, если он еще не запущен. Предварительно удаляет старую БД.
-    Передает URL папки Google Drive как аргумент командной строки.
+    Передает URL папки Google Drive и название WhatsApp чата/группы как аргументы командной строки.
     Возвращает True, если парсер запущен успешно, иначе False.
     """
     global parser_process
@@ -196,11 +203,11 @@ def start_parser(google_drive_url: str) -> bool:
                 logging.info("Файл базы данных не найден, удаление не требуется.")
             # --- Конец удаления --- 
 
-            # Запускаем node index.js в директории app/parser, передавая URL как аргумент
-            parser_command = ['node', 'index.js', google_drive_url] # Добавляем URL
+            # Запускаем node index.js, передавая URL и название WhatsApp-цели
+            parser_command = ['node', 'index.js', google_drive_url, whatsapp_target] # Добавляем URL и название
             logging.info(f"Запуск команды: {' '.join(parser_command)} в {parser_cwd}")
             parser_process = subprocess.Popen(
-                parser_command, # Используем команду с URL
+                parser_command, # Используем команду с URL и названием
                 cwd=parser_cwd, 
                 stdout=None,
                 stderr=None,
@@ -277,6 +284,15 @@ drive_url_label.pack(side="left", padx=5)
 drive_url_entry = ttk.Entry(drive_url_frame, width=60) # Делаем поле шире
 drive_url_entry.pack(side="left", fill='x', expand=True) # Растягиваем поле
 # --- Конец поля для URL ---
+
+# --- Поле для названия WhatsApp чата/группы ---
+whatsapp_frame = ttk.Frame(top_frame)
+whatsapp_frame.pack(pady=5, fill='x', padx=10)
+whatsapp_label = ttk.Label(whatsapp_frame, text="Название WhatsApp чата/группы:")
+whatsapp_label.pack(side="left", padx=5)
+whatsapp_entry = ttk.Entry(whatsapp_frame, width=60)
+whatsapp_entry.pack(side="left", fill='x', expand=True)
+# --- Конец поля для WhatsApp ---
 
 # --- Кнопка Загрузки ---
 load_button_frame = ttk.Frame(top_frame)
