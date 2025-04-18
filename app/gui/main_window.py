@@ -116,17 +116,23 @@ def check_processing_queue():
                 # Преобразуем DataFrame в список списков/кортежей для Treeview
                 report_data_for_table = df.to_records(index=False).tolist()
                 update_table(report_data_for_table) # Отправляем в таблицу
+                save_button.pack(pady=5) # Показываем кнопку сохранения после успешной загрузки
             except FileNotFoundError:
                 messagebox.showerror("Ошибка", f"Файл отчета не найден: {result['report_path']}")
                 last_successful_report_path = None
+                save_button.pack_forget() # Скрываем кнопку, если отчет не найден
             except Exception as e:
                 messagebox.showerror("Ошибка чтения отчета", f"Не удалось прочитать Excel файл: {e}")
                 last_successful_report_path = None
+                save_button.pack_forget() # Скрываем кнопку при ошибке чтения
         elif result['success']:
              # Обработка успешна, но отчет не создан (например, не было сообщений)
              # Просто очищаем таблицу (уже сделано в on_load_messages)
              logging.info("Отчет не был создан (вероятно, не было данных), таблица очищена.")
              last_successful_report_path = None
+             save_button.pack_forget() # Скрываем кнопку, если отчет не создан
+        else: # Если result['success'] == False
+            save_button.pack_forget() # Скрываем кнопку при ошибке обработки
 
     except queue.Empty:
         # Очередь пуста, проверяем снова через 200 мс
@@ -265,11 +271,11 @@ root.resizable(True, True)
 
 # Верхняя панель с выбором даты
 top_frame = ttk.Frame(root)
-top_frame.pack(pady=10)
+top_frame.pack(pady=10, fill='x') # Заполняем по ширине
 
 # --- Поля даты ---
 date_frame = ttk.Frame(top_frame)
-date_frame.pack(pady=5)
+date_frame.pack(pady=5, padx=10, anchor='w') # Выравниваем по левому краю (west)
 date_label = ttk.Label(date_frame, text="Выберите дату:")
 date_label.pack(side="left", padx=5)
 date_picker = DateEntry(date_frame, width=15, background="darkblue", foreground="white", date_pattern="yyyy-mm-dd")
@@ -278,7 +284,7 @@ date_picker.pack(side="left")
 
 # --- Поле для URL Google Drive ---
 drive_url_frame = ttk.Frame(top_frame)
-drive_url_frame.pack(pady=5, fill='x', padx=10) # Растягиваем по X
+drive_url_frame.pack(pady=5, padx=10, anchor='w', fill='x') # Выравниваем по левому краю и заполняем по X
 drive_url_label = ttk.Label(drive_url_frame, text="URL папки Google Drive:")
 drive_url_label.pack(side="left", padx=5)
 drive_url_entry = ttk.Entry(drive_url_frame, width=60) # Делаем поле шире
@@ -287,7 +293,7 @@ drive_url_entry.pack(side="left", fill='x', expand=True) # Растягивае�
 
 # --- Поле для названия WhatsApp чата/группы ---
 whatsapp_frame = ttk.Frame(top_frame)
-whatsapp_frame.pack(pady=5, fill='x', padx=10)
+whatsapp_frame.pack(pady=5, padx=10, anchor='w', fill='x') # Выравниваем по левому краю и заполняем по X
 whatsapp_label = ttk.Label(whatsapp_frame, text="Название WhatsApp чата/группы:")
 whatsapp_label.pack(side="left", padx=5)
 whatsapp_entry = ttk.Entry(whatsapp_frame, width=60)
@@ -296,7 +302,7 @@ whatsapp_entry.pack(side="left", fill='x', expand=True)
 
 # --- Кнопка Загрузки ---
 load_button_frame = ttk.Frame(top_frame)
-load_button_frame.pack(pady=5)
+load_button_frame.pack(pady=10) # Центрируем кнопку 'Создать отчет'
 load_button = ttk.Button(load_button_frame, text="Создать отчет", command=on_load_messages)
 load_button.pack(side="left", padx=10)
 # --- Конец Кнопки Загрузки ---
@@ -324,7 +330,8 @@ bottom_frame = ttk.Frame(root)
 bottom_frame.pack(pady=5)
 
 save_button = ttk.Button(bottom_frame, text="Сохранить в Excel", command=on_save_excel)
-save_button.pack()
+# save_button.pack() # Не показываем кнопку сразу
+# Кнопка будет показана через save_button.pack() в check_processing_queue
 
 # Запуск
 if __name__ == "__main__":
