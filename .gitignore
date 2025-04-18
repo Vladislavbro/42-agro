@@ -45,3 +45,21 @@ client_secrets.json
 
 data/llm_quality_test/
 
+integration_plan.md
+
+index.js
+
+# Node.js dependencies for parser
+/app/parser/node_modules/
+
+# Parser cache and session files
+/app/parser/.wwebjs_cache/
+/app/parser/session/
+/app/parser/telegram.session
+
+# Parser secrets / tokens
+/app/parser/token.json
+/app/parser/credentials.json
+
+/app/parser/42/
+/app/parser/messages.db

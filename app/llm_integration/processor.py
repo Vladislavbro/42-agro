@@ -32,6 +32,7 @@ async def process_single_message_async(
     """
     Асинхронно обрабатывает одно сообщение.
     Принимает инициализированный клиент, сессию и загруженные справочники.
+    Возвращает список извлеченных словарей или None в случае ошибки.
     """
     logging.info(f"[Msg {message_index+1}] Построение промпта...")
     try:
@@ -71,9 +72,21 @@ async def process_single_message_async(
         return None # Возвращаем None при ошибке
 
 
-async def process_batch_async(messages: list[str], run_quality_test: bool = True) -> list | None:
+async def process_batch_async(messages: list[str], output_filename: str = config.REPORT_OUTPUT_PATH, run_quality_test: bool = True) -> list | None:
     """
-    Асинхронно обрабатывает список сообщений и возвращает список извлеченных JSON-объектов.
+    Асинхронно обрабатывает список сообщений.
+
+    Args:
+        messages: Список строк сообщений для обработки.
+        output_filename: Путь к файлу Excel для сохранения результатов.
+                         По умолчанию используется значение из config.REPORT_OUTPUT_PATH.
+        run_quality_test: Флаг для запуска теста качества.
+
+    Returns:
+        Список всех извлеченных JSON-объектов (словарей) в случае успеха,
+        или None в случае критической ошибки на этапах инициализации или обработки.
+        Примечание: Пустой список [] возвращается, если обработка прошла успешно,
+        но LLM не извлек никаких данных ни из одного сообщения.
     """
     total_messages = len(messages)
     logging.info(f"Начало АСИНХРОННОЙ пакетной обработки {total_messages} сообщений...")
@@ -83,15 +96,10 @@ async def process_batch_async(messages: list[str], run_quality_test: bool = True
     try:
         llm_client = TextGenerationClient()
         logging.info(f"Клиент LLM инициализирован: Провайдер='{llm_client.provider}', Модель='{llm_client.model_name}'")
-        # Собираем настройки LLM для последующего сохранения
         llm_settings = {
             "provider": llm_client.provider,
             "model_name": llm_client.model_name,
-            "temperature": llm_client.temperature, # Теперь берем сохраненную температуру
-            # Добавьте другие релевантные настройки, если они есть в TextGenerationClient
-            # и сохраняются в self при инициализации
-            # "max_tokens": getattr(llm_client, 'max_tokens', None),
-            # "top_p": getattr(llm_client, 'top_p', None),
+            "temperature": llm_client.temperature,
         }
     except Exception as e:
         logging.error(f"Критическая ошибка: Не удалось инициализировать клиента LLM: {e}")
@@ -104,7 +112,6 @@ async def process_batch_async(messages: list[str], run_quality_test: bool = True
         operations_content = load_mapping_file(config.OPERATIONS_FILE_PATH)
         with open(config.DEPARTMENTS_FILE_PATH, 'r', encoding='utf-8') as f:
             departments_content = f.read()
-        # Используем импортированный DETAILED_EXTRACTION_PROMPT как базовый
         base_prompt_template = DETAILED_EXTRACTION_PROMPT
         logging.info("Справочники и базовый промпт успешно загружены.")
     except FileNotFoundError as e:
@@ -119,7 +126,7 @@ async def process_batch_async(messages: list[str], run_quality_test: bool = True
 
     # 3. Создание задач для асинхронной обработки
     tasks = []
-    connector = aiohttp.TCPConnector(limit_per_host=config.MAX_CONCURRENT_REQUESTS) # Ограничение одновременных запросов
+    connector = aiohttp.TCPConnector(limit_per_host=config.MAX_CONCURRENT_REQUESTS)
     async with aiohttp.ClientSession(connector=connector) as session:
         logging.info(f"Создание {total_messages} асинхронных задач для обработки сообщений...")
         for i, message in enumerate(messages):
@@ -133,7 +140,7 @@ async def process_batch_async(messages: list[str], run_quality_test: bool = True
                     operations_content=operations_content,
                     departments_content=departments_content,
                     current_date=current_date,
-                    base_prompt=base_prompt_template # Передаем базовый промпт
+                    base_prompt=base_prompt_template
                 ),
                 name=f"ProcessMsg-{i+1}"
             )
@@ -148,34 +155,32 @@ async def process_batch_async(messages: list[str], run_quality_test: bool = True
     all_extracted_data = []
     successful_count = 0
     failed_count = 0
-    successful_results_per_message = [] # Список для хранения успешных результатов по сообщениям
+    successful_results_per_message = []
 
     for i, result in enumerate(results):
         if isinstance(result, Exception):
             logging.error(f"Ошибка при обработке сообщения {i+1}: {result}")
             failed_count += 1
-            successful_results_per_message.append(None) # Добавляем placeholder для неудач
-        elif result is None or not result: # Также проверяем на пустой список
+            successful_results_per_message.append(None)
+        elif result is None or not result:
             if result is None:
                  logging.warning(f"Сообщение {i+1} обработано, но данные не извлечены (вернулся None).")
             else: # result == []
                  logging.info(f"Сообщение {i+1} обработано, но LLM не вернул структурированных данных.")
-            failed_count += 1 # Считаем как неудачу, если данные не извлечены
-            successful_results_per_message.append(None) # Добавляем placeholder
+            failed_count += 1
+            successful_results_per_message.append(None)
         else:
-            # Результат - это список словарей (JSON объектов)
-            all_extracted_data.extend(result) # Собираем все для определения колонок
-            successful_results_per_message.append(result) # Сохраняем результат для этого сообщения
+            all_extracted_data.extend(result)
+            successful_results_per_message.append(result)
             successful_count += 1
 
     logging.info(f"Обработка завершена. Успешно: {successful_count}, Неудачно/Нет данных: {failed_count}")
 
-    if not all_extracted_data:
-        logging.warning("Нет данных для сохранения в Excel после асинхронной обработки.")
-        processing_successful = False
-    else:
+    # 6. Сохранение в Excel (если есть данные)
+    processing_successful = False # Флаг успешности сохранения в Excel
+    if all_extracted_data:
         record_count = len(all_extracted_data)
-        logging.info(f"Подготовка {record_count} извлеченных записей (сгруппированных по сообщениям) для сохранения в Excel...")
+        logging.info(f"Подготовка {record_count} извлеченных записей для сохранения в Excel...")
         try:
             # 1. Определяем полный набор колонок на основе всех данных
             df_temp = pd.DataFrame(all_extracted_data)
@@ -207,7 +212,7 @@ async def process_batch_async(messages: list[str], run_quality_test: bool = True
                 df_final = pd.DataFrame(columns=all_columns) # Создаем пустой DataFrame с колонками
 
             # Сохраняем результат
-            logging.info(f"Сохранение итогового DataFrame в Excel...")
+            logging.info(f"Сохранение итогового DataFrame в Excel: {output_filename}...")
             output_dir = os.path.dirname(output_filename)
             os.makedirs(output_dir, exist_ok=True)
 
@@ -215,13 +220,16 @@ async def process_batch_async(messages: list[str], run_quality_test: bool = True
                 df_final.to_excel(writer, sheet_name='Results', index=False, header=True)
 
             logging.info(f"Результаты успешно сохранены в файл: {output_filename}")
-            processing_successful = True
+            processing_successful = True # Устанавливаем флаг
 
         except Exception as e:
             logging.error(f"Ошибка при обработке данных и записи в Excel: {e}")
-            processing_successful = False
+            # processing_successful остается False
+    else:
+        logging.warning("Нет данных для сохранения в Excel.")
+        # processing_successful остается False
 
-    # 7. Запуск теста качества (если обработка прошла успешно и флаг установлен)
+    # 7. Запуск теста качества (если Excel сохранен успешно и флаг run_quality_test)
     if processing_successful and run_quality_test:
         logging.info("Запуск теста качества...")
         # Определяем пути для теста
@@ -238,15 +246,17 @@ async def process_batch_async(messages: list[str], run_quality_test: bool = True
         # Вызываем функцию сохранения результатов теста
         save_quality_test_results(
             benchmark_file_path=benchmark_file_path,
-            processing_file_path=output_filename, # Файл, который только что создали
+            processing_file_path=output_filename, # Используем актуальный output_filename
             output_dir_base=quality_test_output_dir,
-            prompt_text=base_prompt_template, # Передаем шаблон промпта, а не форматированный
-            llm_settings=llm_settings, # Передаем собранные настройки
-            provider_name=llm_client.provider # <<< Добавлено имя провайдера
+            prompt_text=base_prompt_template,
+            llm_settings=llm_settings,
+            provider_name=llm_client.provider
         )
     elif not processing_successful:
          logging.warning("Пропускаем тест качества, так как не было данных для сохранения в Excel.")
     elif not run_quality_test:
          logging.info("Пропускаем тест качества, так как флаг run_quality_test=False.")
 
-    return processing_successful # Возвращаем True, если Excel файл был успешно создан 
+    # Возвращаем собранные данные или None, если были критические ошибки ранее
+    # В main.py мы проверяем результат на None, чтобы решить, помечать ли сообщения обработанными
+    return all_extracted_data if processing_successful else None # Возвращаем данные только если Excel успешно сохранен 
