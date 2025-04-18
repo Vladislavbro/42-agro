@@ -206,7 +206,12 @@ async def process_batch_async(messages: list[str], output_filename: str = config
 
             # 5. Объединяем DataFrame'ы, если есть что объединять
             if dfs_to_concat:
-                df_final = pd.concat(dfs_to_concat, ignore_index=True)
+                # Фильтруем список, убирая пустые DataFrame'ы перед конкатенацией
+                non_empty_dfs = [df for df in dfs_to_concat if not df.empty]
+                if non_empty_dfs: # Проверяем, остались ли DataFrame'ы после фильтрации
+                  df_final = pd.concat(non_empty_dfs, ignore_index=True)
+                else:
+                  df_final = pd.DataFrame(columns=all_columns) # Если все оказались пустыми
             else:
                 # Если после фильтрации не осталось данных (маловероятно, если all_extracted_data не пусто, но для надежности)
                 df_final = pd.DataFrame(columns=all_columns) # Создаем пустой DataFrame с колонками

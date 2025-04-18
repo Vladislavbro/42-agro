@@ -49,6 +49,7 @@ def upload_to_drive(file_path: str, filename: str = None, google_drive_folder_ur
 
         # Авторизация через OAuth
         gauth = GoogleAuth()
+        gauth.settings['get_refresh_token'] = True
         # Загружаем секреты клиента
         try: # Добавим try/except и сюда на всякий случай
             gauth.LoadClientConfigFile(CLIENT_SECRETS_FILE)
@@ -63,7 +64,7 @@ def upload_to_drive(file_path: str, filename: str = None, google_drive_folder_ur
             if gauth.credentials is None:
                 # Учетные данные не загрузились из файла: запускаем аутентификацию
                 logging.info(f"Учетные данные не загружены из {CREDENTIALS_FILE}, запускаю веб-аутентификацию...")
-                gauth.LocalWebserverAuth() # Этот метод сам вызовет Authorize() в случае успеха
+                gauth.LocalWebserverAuth()
             elif gauth.access_token_expired:
                 # Учетные данные есть, но токен истек: обновляем
                 logging.info("Токен доступа истек, обновляю...")
@@ -76,7 +77,7 @@ def upload_to_drive(file_path: str, filename: str = None, google_drive_folder_ur
         except FileNotFoundError:
              # Файла нет: запускаем аутентификацию
              logging.info(f"Файл учетных данных {CREDENTIALS_FILE} не найден, запускаю веб-аутентификацию...")
-             gauth.LocalWebserverAuth() # Этот метод сам вызовет Authorize() в случае успеха
+             gauth.LocalWebserverAuth()
         except Exception as e:
             logging.error(f"Ошибка при загрузке/проверке учетных данных: {e}", exc_info=True)
             # Если с учетными данными проблема, прерываем выполнение, чтобы не падать дальше
